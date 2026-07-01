@@ -1,0 +1,18 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: university-academic-records-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: university_records
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5433:5432"
+    volumes:
+      - university_records_data_v2:/var/lib/postgresql/data
+
+volumes:
+  university_records_data_v2:
+
