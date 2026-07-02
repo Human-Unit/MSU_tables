@@ -8,11 +8,13 @@ import (
 
 type Attendance struct {
 	Base
-	StudentID uuid.UUID `gorm:"type:uuid;not null;index" json:"studentId"`
-	Student   Person    `gorm:"foreignKey:StudentID;constraint:OnDelete:CASCADE" json:"student"`
-	Day       time.Time `gorm:"not null" json:"day"`
-	Pair      int       `gorm:"not null" json:"pair"`
-	Sign      bool      `gorm:"not null" json:"sign"`
+	StudentID    uuid.UUID        `gorm:"type:uuid;not null;index" json:"studentId"`
+	Student      Person           `gorm:"foreignKey:StudentID;constraint:OnDelete:CASCADE" json:"student"`
+	DisciplineID uuid.UUID        `gorm:"type:uuid;not null;index" json:"disciplineId"`
+	Discipline   Discipline       `gorm:"foreignKey:DisciplineID;constraint:OnDelete:CASCADE" json:"discipline"`
+	Day          time.Time        `gorm:"not null" json:"day"`
+	Pair         int              `gorm:"not null" json:"pair"`
+	Status       AttendanceStatus `gorm:"size:10;not null;default:present" json:"status"`
 }
 
 func (Attendance) TableName() string { return "attendance" }

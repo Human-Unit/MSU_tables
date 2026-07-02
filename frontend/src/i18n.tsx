@@ -130,6 +130,7 @@ const en: Dict = {
   'field.tour': 'Tour',
   'field.sign': 'Sign',
   'field.practices': 'Practices',
+  'field.status': 'Status',
 
   // Static select options.
   'opt.lecture': 'Lecture',
@@ -138,6 +139,12 @@ const en: Dict = {
   'opt.lab': 'Lab',
   'opt.exam': 'Exam',
   'opt.test': 'Test',
+
+  // Attendance status labels.
+  'status.present': 'Present',
+  'status.absent': 'Absent',
+  'status.late': 'Late',
+  'status.excused': 'Excused',
 
   'weekly.title': 'Weekly Schedule',
   'weekly.subtitle': 'Pick a faculty, vocation and course to view the weekly timetable.',
@@ -325,6 +332,7 @@ const ru: Dict = {
   'field.tour': 'Тур',
   'field.sign': 'Оценка',
   'field.practices': 'Практики',
+  'field.status': 'Статус',
 
   // Статические варианты выбора.
   'opt.lecture': 'Лекция',
@@ -333,6 +341,12 @@ const ru: Dict = {
   'opt.lab': 'Лабораторная',
   'opt.exam': 'Экзамен',
   'opt.test': 'Зачёт',
+
+  // Статусы посещаемости.
+  'status.present': 'Присутствовал',
+  'status.absent': 'Отсутствовал',
+  'status.late': 'Опоздал',
+  'status.excused': 'Уважительная',
 
   'weekly.title': 'Расписание на неделю',
   'weekly.subtitle': 'Выберите факультет, направление и курс, чтобы увидеть расписание.',

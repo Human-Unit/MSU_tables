@@ -31,24 +31,17 @@ func (s *DashboardService) Stats(ctx context.Context) (models.DashboardStats, er
 		return stats, err
 	}
 
-	if err := s.db.WithContext(ctx).
-		Model(&models.StudentProfile{}).
-		Preload("Person").
-		Preload("Group").
-		Order("created_at desc").
-		Limit(5).
-		Find(&stats.RecentStudents).Error; err != nil {
+	recentStudents, err := recentStudentRows(ctx, s.db, 5)
+	if err != nil {
 		return stats, err
 	}
+	stats.RecentStudents = recentStudents
 
-	if err := s.db.WithContext(ctx).
-		Model(&models.StaffProfile{}).
-		Preload("Person").
-		Order("created_at desc").
-		Limit(5).
-		Find(&stats.RecentTeachers).Error; err != nil {
+	recentTeachers, err := recentTeacherRows(ctx, s.db, 5)
+	if err != nil {
 		return stats, err
 	}
+	stats.RecentTeachers = recentTeachers
 
 	return stats, nil
 }

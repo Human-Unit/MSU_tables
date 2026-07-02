@@ -188,16 +188,51 @@ func (s *SimpleModuleService) registerModules() {
 	)
 	s.modules["attendance"] = simpleModule(
 		"attendance",
-		[]string{"pair"},
-		[]string{"Student"},
-		func(item map[string]any) string { return nestedString(item, "student", "fullName") },
-		func(ctx context.Context, db *gorm.DB, data map[string]any, _ bool) error {
-			if err := ensureExists(ctx, db, &models.Person{}, uuidValue(data["studentId"]), "studentId"); err != nil {
+		[]string{"pair", "day"},
+		[]string{"Student", "Discipline", "Discipline.Subject"},
+		func(item map[string]any) string {
+			student := nestedString(item, "student", "fullName")
+			subject := nestedString3(item, "discipline", "subject", "name")
+			if student != "" && subject != "" {
+				return student + " — " + subject
+			}
+			if student != "" {
+				return student
+			}
+			return subject
+		},
+		func(ctx context.Context, db *gorm.DB, data map[string]any, isCreate bool) error {
+			studentID := uuidValue(data["studentId"])
+			if err := ensureExists(ctx, db, &models.Person{}, studentID, "studentId"); err != nil {
+				return err
+			}
+			disciplineID := uuidValue(data["disciplineId"])
+			if err := ensureExists(ctx, db, &models.Discipline{}, disciplineID, "disciplineId"); err != nil {
 				return err
 			}
 			pair := intValue(data["pair"])
 			if pair < 1 || pair > 8 {
 				return fmt.Errorf("%w: pair must be between 1 and 8", ErrValidation)
+			}
+			day := dayValue(data["day"])
+			if day == nil {
+				return fmt.Errorf("%w: day is required", ErrValidation)
+			}
+			status := models.AttendanceStatus(stringValue(data["status"]))
+			if err := status.Valid(); err != nil {
+				return err
+			}
+			if isCreate {
+				var count int64
+				dateStr := day.Format("2006-01-02")
+				if err := db.WithContext(ctx).Model(&models.Attendance{}).
+					Where("student_id = ? AND discipline_id = ? AND day = ? AND pair = ?", studentID, disciplineID, dateStr, pair).
+					Count(&count).Error; err != nil {
+					return err
+				}
+				if count > 0 {
+					return fmt.Errorf("%w: attendance record already exists for this student, discipline, date and pair", ErrValidation)
+				}
 			}
 			return nil
 		},
@@ -554,6 +589,15 @@ func uuidValue(v any) uuid.UUID {
 func nestedString(item map[string]any, first, second string) string {
 	if nested, ok := item[first].(map[string]any); ok {
 		return stringValue(nested[second])
+	}
+	return ""
+}
+
+func nestedString3(item map[string]any, first, second, third string) string {
+	if nested, ok := item[first].(map[string]any); ok {
+		if nested2, ok2 := nested[second].(map[string]any); ok2 {
+			return stringValue(nested2[third])
+		}
 	}
 	return ""
 }

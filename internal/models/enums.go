@@ -36,6 +36,24 @@ func (t LessonType) Valid() error {
 	}
 }
 
+type AttendanceStatus string
+
+const (
+	AttendancePresent AttendanceStatus = "present"
+	AttendanceAbsent  AttendanceStatus = "absent"
+	AttendanceLate    AttendanceStatus = "late"
+	AttendanceExcused AttendanceStatus = "excused"
+)
+
+func (s AttendanceStatus) Valid() error {
+	switch s {
+	case AttendancePresent, AttendanceAbsent, AttendanceLate, AttendanceExcused:
+		return nil
+	default:
+		return fmt.Errorf("invalid attendance status: %s", s)
+	}
+}
+
 type FormOfControl string
 
 const (

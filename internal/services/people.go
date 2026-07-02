@@ -135,7 +135,9 @@ func (s *StudentService) Update(ctx context.Context, id string, req StudentUpser
 			return err
 		}
 		person.FullName = req.FullName
-		person.DateOfBirth = req.DateOfBirth
+		if req.DateOfBirth != nil {
+			person.DateOfBirth = req.DateOfBirth
+		}
 		person.Phone = req.Phone
 		person.Address = req.Address
 		person.Email = req.Email
@@ -190,7 +192,18 @@ func (s *StudentService) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return fmt.Errorf("%w: id is invalid", ErrValidation)
 	}
-	return s.db.WithContext(ctx).Delete(&models.Person{}, "id = ?", personID).Error
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.Person{}).Where("id = ?", personID).Update("is_active", false).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&models.StudentProfile{}).Where("person_id = ?", personID).Update("is_active", false).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&models.User{}).Where("person_id = ?", personID).Update("is_active", false).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (s *StudentService) Options(ctx context.Context) ([]models.OptionItem, error) {
@@ -296,7 +309,9 @@ func (s *TeacherService) Update(ctx context.Context, id string, req TeacherUpser
 			return err
 		}
 		person.FullName = req.FullName
-		person.DateOfBirth = req.DateOfBirth
+		if req.DateOfBirth != nil {
+			person.DateOfBirth = req.DateOfBirth
+		}
 		person.Phone = req.Phone
 		person.Address = req.Address
 		person.Email = req.Email
@@ -349,7 +364,18 @@ func (s *TeacherService) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return fmt.Errorf("%w: id is invalid", ErrValidation)
 	}
-	return s.db.WithContext(ctx).Delete(&models.Person{}, "id = ?", personID).Error
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.Person{}).Where("id = ?", personID).Update("is_active", false).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&models.StaffProfile{}).Where("person_id = ?", personID).Update("is_active", false).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&models.User{}).Where("person_id = ?", personID).Update("is_active", false).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (s *TeacherService) Options(ctx context.Context) ([]models.OptionItem, error) {
@@ -569,6 +595,72 @@ func listTeacherOptions(ctx context.Context, db *gorm.DB) ([]models.OptionItem, 
 		options = append(options, models.OptionItem{ID: row.PersonID, Label: row.FullName})
 	}
 	return options, nil
+}
+
+func recentStudentRows(ctx context.Context, db *gorm.DB, limit int) ([]map[string]any, error) {
+	var rows []StudentRow
+	if err := db.WithContext(ctx).Table("person").
+		Joins("JOIN student_profile ON student_profile.person_id = person.id").
+		Joins(`JOIN "group" ON "group".id = student_profile.group_id`).
+		Joins("LEFT JOIN users ON users.person_id = person.id").
+		Joins("LEFT JOIN role ON role.id = users.role_id").
+		Select(`
+			person.id as person_id,
+			person.full_name,
+			person.date_of_birth,
+			person.phone,
+			person.address,
+			person.email,
+			student_profile.group_id,
+			"group".name as group_name,
+			users.username,
+			role.name as role_name,
+			person.is_active
+		`).Order("student_profile.created_at desc").Limit(limit).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	items := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		item, err := toMap(row)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+func recentTeacherRows(ctx context.Context, db *gorm.DB, limit int) ([]map[string]any, error) {
+	var rows []TeacherRow
+	if err := db.WithContext(ctx).Table("person").
+		Joins("JOIN staff_profile ON staff_profile.person_id = person.id").
+		Joins("LEFT JOIN users ON users.person_id = person.id").
+		Joins("LEFT JOIN role ON role.id = users.role_id").
+		Select(`
+			person.id as person_id,
+			person.full_name,
+			person.date_of_birth,
+			person.phone,
+			person.address,
+			person.email,
+			staff_profile.science_degree,
+			staff_profile.science_rank,
+			staff_profile.occupation,
+			users.username,
+			role.name as role_name,
+			person.is_active
+		`).Order("staff_profile.created_at desc").Limit(limit).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	items := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		item, err := toMap(row)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, nil
 }
 
 func rowsToPage[T any](rows []T, page, pageSize int, total int64) (models.PageResult, error) {

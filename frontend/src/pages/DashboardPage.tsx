@@ -9,21 +9,15 @@ type DashboardPageProps = {
 };
 
 function getPersonName(student: Record<string, any>) {
-  const person = student?.person;
-  if (!person) return '-';
-  return person?.fullName ?? '-';
+  return student?.fullName ?? '-';
 }
 
 function getGroupName(student: Record<string, any>) {
-  const group = student?.group;
-  if (!group) return '-';
-  return group?.name ?? '-';
+  return student?.groupName ?? '-';
 }
 
 function getTeacherName(teacher: Record<string, any>) {
-  const person = teacher?.person;
-  if (!person) return '-';
-  return person?.fullName ?? '-';
+  return teacher?.fullName ?? '-';
 }
 
 export function DashboardPage({stats}: DashboardPageProps) {

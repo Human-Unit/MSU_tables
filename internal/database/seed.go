@@ -145,11 +145,14 @@ func seedScheduleDemo(ctx context.Context, db *gorm.DB) error {
 		subjectID[name] = s.ID
 	}
 
-	// Teachers (person + staff profile).
+	// Teachers (person + staff profile + user for login).
 	teacherID := map[string]uuid.UUID{}
-	teachers := []struct{ name, email, occupation string }{
-		{"Каримов Рустам", "karimov.r@demo.edu", "Доцент"},
-		{"Смирнова Ольга", "smirnova.o@demo.edu", "Старший преподаватель"},
+	teachers := []struct {
+		name, email, occupation string
+		username, password      string
+	}{
+		{"Каримов Рустам", "karimov.r@demo.edu", "Доцент", "karimov", "demo"},
+		{"Смирнова Ольга", "smirnova.o@demo.edu", "Старший преподаватель", "smirnova", "demo"},
 	}
 	for _, t := range teachers {
 		p := models.Person{}
@@ -163,6 +166,28 @@ func seedScheduleDemo(ctx context.Context, db *gorm.DB) error {
 			Attrs(models.StaffProfile{Occupation: t.occupation}).
 			FirstOrCreate(&profile).Error; err != nil {
 			return err
+		}
+
+		// Create a user account so demo teachers can log in.
+		var role models.Role
+		if err := tx.Where("name = ?", "Instructor").First(&role).Error; err != nil {
+			return err
+		}
+		existingUser := models.User{}
+		if err := tx.Where("username = ?", t.username).First(&existingUser).Error; err != nil {
+			hash, err := bcrypt.GenerateFromPassword([]byte(t.password), bcrypt.DefaultCost)
+			if err != nil {
+				return err
+			}
+			user := models.User{
+				PersonID:     p.ID,
+				RoleID:       role.ID,
+				Username:     t.username,
+				PasswordHash: string(hash),
+			}
+			if err := tx.Create(&user).Error; err != nil {
+				return err
+			}
 		}
 		teacherID[t.name] = p.ID
 	}
@@ -256,12 +281,27 @@ func seedAttendanceDemo(ctx context.Context, db *gorm.DB) error {
 	slots := []slot{{day1, 1}, {day1, 2}, {day2, 1}}
 
 	for i, sp := range students {
+		// Pick a discipline for the student's group so attendance is properly linked.
+		var disciplines []models.Discipline
+		if err := tx.Where("group_id = ?", sp.GroupID).Order("created_at asc").Limit(2).Find(&disciplines).Error; err != nil {
+			return err
+		}
 		for j, sl := range slots {
+			// Cycle through available disciplines; use a predictable pattern.
+			if len(disciplines) == 0 {
+				continue
+			}
+			disc := disciplines[(i+j)%len(disciplines)]
 			// Mark most sessions present, with a predictable absence pattern.
-			present := (i+j)%4 != 0
+			status := models.AttendancePresent
+			if (i+j)%4 == 0 {
+				status = models.AttendanceAbsent
+			} else if (i+j)%5 == 0 {
+				status = models.AttendanceLate
+			}
 			record := models.Attendance{}
-			if err := tx.Where(models.Attendance{StudentID: sp.PersonID, Day: sl.day, Pair: sl.pair}).
-				Attrs(models.Attendance{Sign: present}).
+			if err := tx.Where(models.Attendance{StudentID: sp.PersonID, DisciplineID: disc.ID, Day: sl.day, Pair: sl.pair}).
+				Attrs(models.Attendance{Status: status}).
 				FirstOrCreate(&record).Error; err != nil {
 				return err
 			}

@@ -271,6 +271,7 @@ function Field({
     <div className={cn(common, field.type === 'textarea' ? 'md:col-span-2' : '')}>
       <label className="block text-sm font-medium text-slate-700">{label}</label>
       {field.type === 'text' && <Input {...register(field.name)} placeholder={field.placeholder} />}
+      {field.type === 'password' && <Input {...register(field.name)} type="password" placeholder={field.placeholder} />}
       {field.type === 'number' && <Input {...register(field.name)} type="number" min={field.min} max={field.max} step={field.step ?? 1} />}
       {field.type === 'date' && <Input {...register(field.name)} type="date" />}
       {field.type === 'textarea' && <Textarea {...register(field.name)} placeholder={field.placeholder} />}

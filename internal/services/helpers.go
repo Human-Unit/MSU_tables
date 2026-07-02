@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -50,6 +51,25 @@ func requireNonNegativeInt(value int, field string) error {
 		return fmt.Errorf("%w: %s must not be negative", ErrValidation, field)
 	}
 	return nil
+}
+
+func dayValue(v any) *time.Time {
+	switch t := v.(type) {
+	case time.Time:
+		return &t
+	case *time.Time:
+		return t
+	case string:
+		for _, layout := range []string{time.RFC3339, "2006-01-02T15:04:05Z", "2006-01-02"} {
+			parsed, err := time.Parse(layout, t)
+			if err == nil {
+				return &parsed
+			}
+		}
+		return nil
+	default:
+		return nil
+	}
 }
 
 func requireUUID(value uuid.UUID, field string) error {

@@ -8,7 +8,7 @@ export type ColumnConfig = {
   label: string;
 };
 
-export type FieldType = 'text' | 'number' | 'date' | 'checkbox' | 'select' | 'textarea';
+export type FieldType = 'text' | 'number' | 'date' | 'checkbox' | 'select' | 'textarea' | 'password';
 
 export type FieldConfig = {
   name: string;
