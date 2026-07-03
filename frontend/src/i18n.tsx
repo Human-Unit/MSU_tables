@@ -173,6 +173,8 @@ const en: Dict = {
   'weekly.addLesson': 'Add lesson',
   'weekly.editLesson': 'Edit lesson',
   'weekly.add': 'Add',
+  'weekly.room': 'Room',
+  'weekly.conflictHint': 'The system checks for teacher, group, and auditorium conflicts before saving.',
 
   'lesson.lecture': 'Lecture',
   'lesson.practice': 'Practice',
@@ -385,6 +387,8 @@ const ru: Dict = {
   'weekly.addLesson': 'Добавить занятие',
   'weekly.editLesson': 'Изменить занятие',
   'weekly.add': 'Добавить',
+  'weekly.room': 'Ауд.',
+  'weekly.conflictHint': 'Система проверяет конфликты преподавателя, группы и аудитории перед сохранением.',
 
   'lesson.lecture': 'Лекция',
   'lesson.practice': 'Практика',

@@ -3,6 +3,7 @@ import {useForm} from 'react-hook-form';
 import {z} from 'zod';
 import {zodResolver} from '@hookform/resolvers/zod';
 
+import {Alert} from './ui/alert';
 import {Button} from './ui/button';
 import {Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle} from './ui/dialog';
 import {Input} from './ui/input';
@@ -166,7 +167,14 @@ export function RecordFormDialog({
           <DialogDescription>{t('common.fillDetails')}</DialogDescription>
         </DialogHeader>
         <DialogBody>
-          {submitError && <p className="mb-3 text-sm text-red-600">{t('common.saveFailed')}: {submitError}</p>}
+          {submitError && (
+            <Alert
+              variant="error"
+              message={`${t('common.saveFailed')}: ${submitError}`}
+              onClose={() => setSubmitError(null)}
+              className="mb-4"
+            />
+          )}
           <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit(submit)}>
             {config.fields.map((field) => (
               <Field

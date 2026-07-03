@@ -182,6 +182,61 @@ func (s *SimpleModuleService) registerModules() {
 			if pair < 1 || pair > 8 {
 				return fmt.Errorf("%w: pair must be between 1 and 8", ErrValidation)
 			}
+
+			// Build the base query for conflict checks.
+			excludeID := stringValue(data["id"])
+
+			// 1. Teacher conflict: same teacher cannot be in two places at the same time.
+			teacherID := uuidValue(data["teacherId"])
+			if teacherID != uuid.Nil {
+				teacherQuery := db.WithContext(ctx).Model(&models.Schedule{}).
+					Where("weekday = ? AND pair = ? AND teacher_id = ?", weekday, pair, teacherID)
+				if excludeID != "" {
+					teacherQuery = teacherQuery.Where("id != ?", excludeID)
+				}
+				var teacherCount int64
+				if err := teacherQuery.Count(&teacherCount).Error; err != nil {
+					return err
+				}
+				if teacherCount > 0 {
+					return fmt.Errorf("%w: teacher is already scheduled for pair %d on this weekday", ErrValidation, pair)
+				}
+			}
+
+			// 2. Group conflict: same group cannot have two lessons at the same time.
+			groupID := uuidValue(data["groupId"])
+			if groupID != uuid.Nil {
+				groupQuery := db.WithContext(ctx).Model(&models.Schedule{}).
+					Where("weekday = ? AND pair = ? AND group_id = ?", weekday, pair, groupID)
+				if excludeID != "" {
+					groupQuery = groupQuery.Where("id != ?", excludeID)
+				}
+				var groupCount int64
+				if err := groupQuery.Count(&groupCount).Error; err != nil {
+					return err
+				}
+				if groupCount > 0 {
+					return fmt.Errorf("%w: group already has a lesson scheduled for pair %d on this weekday", ErrValidation, pair)
+				}
+			}
+
+			// 3. Auditorium conflict: same auditorium cannot be booked for two lessons at the same time.
+			auditoriumID := uuidValue(data["auditoriumId"])
+			if auditoriumID != uuid.Nil {
+				auditoriumQuery := db.WithContext(ctx).Model(&models.Schedule{}).
+					Where("weekday = ? AND pair = ? AND auditorium_id = ?", weekday, pair, auditoriumID)
+				if excludeID != "" {
+					auditoriumQuery = auditoriumQuery.Where("id != ?", excludeID)
+				}
+				var auditoriumCount int64
+				if err := auditoriumQuery.Count(&auditoriumCount).Error; err != nil {
+					return err
+				}
+				if auditoriumCount > 0 {
+					return fmt.Errorf("%w: auditorium is already booked for pair %d on this weekday", ErrValidation, pair)
+				}
+			}
+
 			return nil
 		},
 		func() any { return &models.Schedule{} },
@@ -443,6 +498,9 @@ func saveEntity(ctx context.Context, db *gorm.DB, def SimpleModule, payload map[
 		}
 	}
 
+	if id != "" {
+		payload["id"] = id
+	}
 	if def.Validate != nil {
 		if err := def.Validate(ctx, db, payload, isCreate); err != nil {
 			return nil, err
