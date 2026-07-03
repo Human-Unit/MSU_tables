@@ -1,13 +1,16 @@
 import {useEffect, useMemo, useState} from 'react';
 import type {ReactNode} from 'react';
-import {CalendarRange} from 'lucide-react';
+import {CalendarRange, Plus} from 'lucide-react';
 
+import {Button} from '../components/ui/button';
 import {Card, CardContent, CardHeader, CardTitle} from '../components/ui/card';
 import {Select} from '../components/ui/select';
 import {Badge} from '../components/ui/badge';
+import {RecordFormDialog} from '../components/RecordFormDialog';
 import {api} from '../services/api';
 import {cn} from '../lib/utils';
 import {useI18n} from '../i18n';
+import {moduleByKey} from '../data/modules';
 import type {ScheduleEntry, ScheduleFilterData} from '../types/modules';
 
 const WEEKDAYS = [1, 2, 3, 4, 5, 6];
@@ -20,6 +23,8 @@ const lessonBadgeClass: Record<string, string> = {
 
 const emptyFilters: ScheduleFilterData = {faculties: [], vocations: [], groups: []};
 
+const scheduleConfig = moduleByKey.get('schedule')!;
+
 export function WeeklySchedulePage() {
   const {t} = useI18n();
 
@@ -31,6 +36,12 @@ export function WeeklySchedulePage() {
 
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  // Schedule edit/add dialog state.
+  const [formOpen, setFormOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [addInitial, setAddInitial] = useState<Record<string, any> | undefined>(undefined);
 
   useEffect(() => {
     void api.scheduleFilters().then(setFilters).catch(() => setFilters(emptyFilters));
@@ -61,7 +72,7 @@ export function WeeklySchedulePage() {
     [groupsForScope, course],
   );
 
-  // Fetch the timetable whenever the filter combination changes.
+  // Fetch the timetable whenever the filter combination (or a save) changes.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -79,7 +90,7 @@ export function WeeklySchedulePage() {
     return () => {
       cancelled = true;
     };
-  }, [facultyId, vocationId, course, groupId]);
+  }, [facultyId, vocationId, course, groupId, refreshTick]);
 
   function onFacultyChange(value: string) {
     setFacultyId(value);
@@ -97,6 +108,26 @@ export function WeeklySchedulePage() {
   function onCourseChange(value: string) {
     setCourse(value);
     setGroupId('');
+  }
+
+  function reload() {
+    setRefreshTick((tick) => tick + 1);
+  }
+
+  function openEdit(id: string) {
+    setEditId(id);
+    setAddInitial(undefined);
+    setFormOpen(true);
+  }
+
+  function openAdd(prefill?: {weekday?: number; pair?: number}) {
+    setEditId(null);
+    setAddInitial({
+      ...(groupId ? {groupId} : {}),
+      ...(prefill?.weekday ? {weekday: prefill.weekday} : {}),
+      ...(prefill?.pair ? {pair: prefill.pair} : {}),
+    });
+    setFormOpen(true);
   }
 
   const showGroupName = groupId === '';
@@ -120,14 +151,20 @@ export function WeeklySchedulePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white">
-          <CalendarRange className="h-5 w-5" />
-        </span>
-        <div>
-          <h2 className="text-3xl font-semibold text-slate-950">{t('weekly.title')}</h2>
-          <p className="mt-1 text-sm text-slate-500">{t('weekly.subtitle')}</p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white">
+            <CalendarRange className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-3xl font-semibold text-slate-950">{t('weekly.title')}</h2>
+            <p className="mt-1 text-sm text-slate-500">{t('weekly.subtitle')}</p>
+          </div>
         </div>
+        <Button className="gap-2" onClick={() => openAdd()}>
+          <Plus className="h-4 w-4" />
+          {t('weekly.addLesson')}
+        </Button>
       </div>
 
       <Card>
@@ -183,8 +220,6 @@ export function WeeklySchedulePage() {
         <CardContent>
           {loading ? (
             <p className="py-10 text-center text-sm text-slate-500">{t('common.loading')}</p>
-          ) : entries.length === 0 ? (
-            <p className="py-10 text-center text-sm text-slate-500">{t('weekly.empty')}</p>
           ) : (
             <div className="overflow-x-auto rounded-2xl border border-slate-200">
               <table className="w-full border-collapse text-sm">
@@ -212,11 +247,29 @@ export function WeeklySchedulePage() {
                       {WEEKDAYS.map((weekday) => {
                         const cellEntries = cellMap.get(`${weekday}-${pair}`) ?? [];
                         return (
-                          <td key={weekday} className="border-t border-slate-100 px-2 py-2">
+                          <td key={weekday} className="group border-t border-slate-100 px-2 py-2">
                             <div className="space-y-2">
                               {cellEntries.map((entry) => (
-                                <LessonCard key={entry.id} entry={entry} showGroup={showGroupName} t={t} />
+                                <LessonCard
+                                  key={entry.id}
+                                  entry={entry}
+                                  showGroup={showGroupName}
+                                  onClick={() => openEdit(entry.id)}
+                                  t={t}
+                                />
                               ))}
+                              <button
+                                type="button"
+                                title={t('weekly.addLesson')}
+                                onClick={() => openAdd({weekday, pair})}
+                                className={cn(
+                                  'flex w-full items-center justify-center gap-1 rounded-xl border border-dashed border-slate-200 py-1.5 text-xs text-slate-400 transition hover:border-slate-300 hover:text-slate-600',
+                                  cellEntries.length > 0 ? 'opacity-0 group-hover:opacity-100' : '',
+                                )}
+                              >
+                                <Plus className="h-3 w-3" />
+                                {t('weekly.add')}
+                              </button>
                             </div>
                           </td>
                         );
@@ -230,6 +283,17 @@ export function WeeklySchedulePage() {
           <p className="mt-4 text-xs text-slate-400">{t('weekly.editHint')}</p>
         </CardContent>
       </Card>
+
+      <RecordFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        config={scheduleConfig}
+        recordId={editId}
+        initialValues={addInitial}
+        title={editId ? t('weekly.editLesson') : t('weekly.addLesson')}
+        onSaved={reload}
+        onDeleted={reload}
+      />
     </div>
   );
 }
@@ -246,15 +310,22 @@ function Filter({label, children}: {label: string; children: ReactNode}) {
 function LessonCard({
   entry,
   showGroup,
+  onClick,
   t,
 }: {
   entry: ScheduleEntry;
   showGroup: boolean;
+  onClick: () => void;
   t: (key: string, vars?: Record<string, string | number>) => string;
 }) {
   const lessonType = entry.typeOfLesson;
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+    <button
+      type="button"
+      onClick={onClick}
+      title={t('weekly.editLesson')}
+      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition hover:border-slate-400 hover:shadow-md"
+    >
       <p className="font-semibold text-slate-900">{entry.subject?.name ?? '—'}</p>
       <p className="text-xs text-slate-500">{entry.teacher?.fullName ?? '—'}</p>
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -268,6 +339,6 @@ function LessonCard({
           <span className="text-[11px] font-medium text-slate-400">{entry.group.name}</span>
         ) : null}
       </div>
-    </div>
+    </button>
   );
 }

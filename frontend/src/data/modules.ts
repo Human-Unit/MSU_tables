@@ -3,16 +3,19 @@ import type {ModuleConfig} from '../types/modules';
 // Column `label`, field `label` and static option `label` values are i18n keys
 // (see frontend/src/i18n.tsx). ModulePage resolves them via t(). Dynamic option
 // labels loaded from the API (real names) pass through t() unchanged.
+//
+// Note: the `isActive` flag is intentionally NOT exposed as a form field. It is a
+// backend soft-delete flag: new records default to active and edits preserve the
+// current value (see RecordFormDialog). Deleting a record deactivates it.
 export const moduleConfigs: ModuleConfig[] = [
   {
     key: 'faculty',
     title: 'Faculties',
     subtitle: 'Manage academic faculties.',
     searchPlaceholder: 'Search faculty...',
-    columns: [{key: 'name', label: 'col.name'}, {key: 'isActive', label: 'col.status'}],
+    columns: [{key: 'name', label: 'col.name'}],
     fields: [
       {name: 'name', label: 'field.name', type: 'text', required: true, placeholder: 'Faculty name'},
-      {name: 'isActive', label: 'field.active', type: 'checkbox'},
     ],
   },
   {
@@ -24,7 +27,6 @@ export const moduleConfigs: ModuleConfig[] = [
     fields: [
       {name: 'name', label: 'field.name', type: 'text', required: true},
       {name: 'facultyId', label: 'field.faculty', type: 'select', source: 'faculty', required: false},
-      {name: 'isActive', label: 'field.active', type: 'checkbox'},
     ],
   },
   {
@@ -37,7 +39,6 @@ export const moduleConfigs: ModuleConfig[] = [
       {name: 'name', label: 'field.name', type: 'text', required: true},
       {name: 'vocationId', label: 'field.vocation', type: 'select', source: 'vocation', required: true},
       {name: 'educationYear', label: 'field.educationYear', type: 'number', required: true, min: 1},
-      {name: 'isActive', label: 'field.active', type: 'checkbox'},
     ],
   },
   {
@@ -53,7 +54,6 @@ export const moduleConfigs: ModuleConfig[] = [
         {id: 'practice', label: 'opt.practice'},
         {id: 'flow', label: 'opt.flow'},
       ]},
-      {name: 'isActive', label: 'field.active', type: 'checkbox'},
     ],
   },
   {
@@ -61,6 +61,7 @@ export const moduleConfigs: ModuleConfig[] = [
     title: 'Students',
     subtitle: 'Create student accounts and profiles.',
     searchPlaceholder: 'Search students...',
+    idKey: 'personId',
     columns: [{key: 'fullName', label: 'col.fullName'}, {key: 'groupName', label: 'col.group'}, {key: 'username', label: 'col.username'}],
     fields: [
       {name: 'fullName', label: 'field.fullName', type: 'text', required: true},
@@ -71,7 +72,6 @@ export const moduleConfigs: ModuleConfig[] = [
       {name: 'groupId', label: 'field.group', type: 'select', source: 'group', required: true},
       {name: 'username', label: 'field.username', type: 'text', required: true},
       {name: 'password', label: 'field.password', type: 'password', required: true},
-      {name: 'isActive', label: 'field.active', type: 'checkbox'},
     ],
   },
   {
@@ -79,6 +79,7 @@ export const moduleConfigs: ModuleConfig[] = [
     title: 'Teachers',
     subtitle: 'Create teacher accounts and profiles.',
     searchPlaceholder: 'Search teachers...',
+    idKey: 'personId',
     columns: [{key: 'fullName', label: 'col.fullName'}, {key: 'occupation', label: 'col.occupation'}, {key: 'username', label: 'col.username'}],
     fields: [
       {name: 'fullName', label: 'field.fullName', type: 'text', required: true},
@@ -91,7 +92,6 @@ export const moduleConfigs: ModuleConfig[] = [
       {name: 'occupation', label: 'field.occupation', type: 'text'},
       {name: 'username', label: 'field.username', type: 'text', required: true},
       {name: 'password', label: 'field.password', type: 'password', required: true},
-      {name: 'isActive', label: 'field.active', type: 'checkbox'},
     ],
   },
   {
@@ -106,7 +106,6 @@ export const moduleConfigs: ModuleConfig[] = [
       {name: 'quantityOfHours', label: 'field.quantityOfHours', type: 'number', required: true, min: 1},
       {name: 'creditsECTS', label: 'field.creditsECTS', type: 'number', min: 0, step: 0.1},
       {name: 'formOfControl', label: 'field.formOfControl', type: 'text', required: true},
-      {name: 'isActive', label: 'field.active', type: 'checkbox'},
     ],
   },
   {
@@ -124,7 +123,6 @@ export const moduleConfigs: ModuleConfig[] = [
       {name: 'quantityOfLabWorks', label: 'field.labWorks', type: 'number', min: 0},
       {name: 'otherWorks', label: 'field.otherWorks', type: 'number', min: 0},
       {name: 'selfControl', label: 'field.selfControl', type: 'number', min: 0},
-      {name: 'isActive', label: 'field.active', type: 'checkbox'},
     ],
   },
   {
@@ -152,7 +150,6 @@ export const moduleConfigs: ModuleConfig[] = [
       ]},
       {name: 'auditoriumId', label: 'field.auditorium', type: 'select', source: 'auditorium'},
       {name: 'groupId', label: 'field.group', type: 'select', source: 'group', required: true},
-      {name: 'isActive', label: 'field.active', type: 'checkbox'},
     ],
   },
   {
@@ -172,7 +169,6 @@ export const moduleConfigs: ModuleConfig[] = [
         {id: 'late', label: 'status.late'},
         {id: 'excused', label: 'status.excused'},
       ]},
-      {name: 'isActive', label: 'field.active', type: 'checkbox'},
     ],
   },
   {
@@ -191,7 +187,6 @@ export const moduleConfigs: ModuleConfig[] = [
       ]},
       {name: 'tour', label: 'field.tour', type: 'number', required: true, min: 1},
       {name: 'sign', label: 'field.sign', type: 'number', required: true, min: 0},
-      {name: 'isActive', label: 'field.active', type: 'checkbox'},
     ],
   },
   {
@@ -207,7 +202,6 @@ export const moduleConfigs: ModuleConfig[] = [
       {name: 'practices', label: 'field.practices', type: 'number', min: 0},
       {name: 'labWorks', label: 'field.labWorks', type: 'number', min: 0},
       {name: 'otherWorks', label: 'field.otherWorks', type: 'number', min: 0},
-      {name: 'isActive', label: 'field.active', type: 'checkbox'},
     ],
   },
 ];

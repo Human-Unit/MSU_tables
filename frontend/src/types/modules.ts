@@ -34,6 +34,9 @@ export type ModuleConfig = {
   searchPlaceholder: string;
   columns: ColumnConfig[];
   fields: FieldConfig[];
+  // Key of the field that identifies a record for get/update/delete.
+  // Defaults to 'id'; people modules (students/teachers) expose it as 'personId'.
+  idKey?: string;
 };
 
 export type PageResult = {
