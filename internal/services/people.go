@@ -120,7 +120,13 @@ func (s *StudentService) Update(ctx context.Context, id string, req StudentUpser
 		return nil, fmt.Errorf("%w: id is invalid", ErrValidation)
 	}
 
-	exists, err := s.auth.UsernameExists(ctx, req.Username, id)
+	// Lookup the user ID so the username-uniqueness check can exclude the correct row.
+	var user models.User
+	if err := s.db.WithContext(ctx).First(&user, "person_id = ?", personID).Error; err != nil {
+		return nil, err
+	}
+
+	exists, err := s.auth.UsernameExists(ctx, req.Username, user.ID.String())
 	if err != nil {
 		return nil, err
 	}
@@ -160,10 +166,6 @@ func (s *StudentService) Update(ctx context.Context, id string, req StudentUpser
 			return err
 		}
 
-		var user models.User
-		if err := tx.First(&user, "person_id = ?", personID).Error; err != nil {
-			return err
-		}
 		user.Username = req.Username
 		user.IsActive = req.IsActive
 		if strings.TrimSpace(req.Password) != "" {
@@ -294,7 +296,13 @@ func (s *TeacherService) Update(ctx context.Context, id string, req TeacherUpser
 		return nil, fmt.Errorf("%w: id is invalid", ErrValidation)
 	}
 
-	exists, err := s.auth.UsernameExists(ctx, req.Username, id)
+	// Lookup the user ID so the username-uniqueness check can exclude the correct row.
+	var user models.User
+	if err := s.db.WithContext(ctx).First(&user, "person_id = ?", personID).Error; err != nil {
+		return nil, err
+	}
+
+	exists, err := s.auth.UsernameExists(ctx, req.Username, user.ID.String())
 	if err != nil {
 		return nil, err
 	}
@@ -332,10 +340,6 @@ func (s *TeacherService) Update(ctx context.Context, id string, req TeacherUpser
 			return err
 		}
 
-		var user models.User
-		if err := tx.First(&user, "person_id = ?", personID).Error; err != nil {
-			return err
-		}
 		user.Username = req.Username
 		user.IsActive = req.IsActive
 		if strings.TrimSpace(req.Password) != "" {
