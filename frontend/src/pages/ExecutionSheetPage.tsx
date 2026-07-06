@@ -86,6 +86,16 @@ export function ExecutionSheetPage() {
 
   const rowTotal = (record: Rec) => workloadKeys.reduce((sum, key) => sum + Number(record[key] ?? 0), 0);
 
+  // Calculate planned hours per discipline
+  const plannedHours = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const record of teacherRecords) {
+      const planned = Number(record.discipline?.subject?.quantityOfHours ?? 0);
+      map.set(record.disciplineId, planned);
+    }
+    return map;
+  }, [teacherRecords]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -142,25 +152,34 @@ export function ExecutionSheetPage() {
                       <th className="border-b border-l border-slate-200 px-3 py-3 text-center font-semibold text-slate-600">{t('field.practices')}</th>
                       <th className="border-b border-l border-slate-200 px-3 py-3 text-center font-semibold text-slate-600">{t('field.labWorks')}</th>
                       <th className="border-b border-l border-slate-200 px-3 py-3 text-center font-semibold text-slate-600">{t('field.otherWorks')}</th>
+                      <th className="border-b border-l border-slate-200 px-3 py-3 text-center font-semibold text-slate-600">{t('col.sign')}</th>
                       <th className="border-b border-l border-slate-200 px-3 py-3 text-center font-semibold text-slate-700">{t('journal.execution.total')}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {teacherRecords.map((record) => (
-                      <tr
-                        key={record.id}
-                        onClick={() => openEdit(record.id)}
-                        title={t('common.edit')}
-                        className="cursor-pointer border-t border-slate-100 transition hover:bg-slate-50"
-                      >
-                        <td className="px-3 py-2.5 font-medium text-slate-800">{record.discipline?.subject?.name ?? '—'}</td>
-                        <td className="border-l border-slate-100 px-3 py-2.5 text-center text-slate-600">{record.lectures ?? 0}</td>
-                        <td className="border-l border-slate-100 px-3 py-2.5 text-center text-slate-600">{record.practices ?? 0}</td>
-                        <td className="border-l border-slate-100 px-3 py-2.5 text-center text-slate-600">{record.labWorks ?? 0}</td>
-                        <td className="border-l border-slate-100 px-3 py-2.5 text-center text-slate-600">{record.otherWorks ?? 0}</td>
-                        <td className="border-l border-slate-100 px-3 py-2.5 text-center font-semibold text-slate-800">{rowTotal(record)}</td>
-                      </tr>
-                    ))}
+                    {teacherRecords.map((record) => {
+                      const planned = plannedHours.get(record.disciplineId) ?? 0;
+                      const total = rowTotal(record);
+                      const remaining = planned - total;
+                      return (
+                        <tr
+                          key={record.id}
+                          onClick={() => openEdit(record.id)}
+                          title={t('common.edit')}
+                          className="cursor-pointer border-t border-slate-100 transition hover:bg-slate-50"
+                        >
+                          <td className="px-3 py-2.5 font-medium text-slate-800">{record.discipline?.subject?.name ?? '—'}</td>
+                          <td className="border-l border-slate-100 px-3 py-2.5 text-center text-slate-600">{record.lectures ?? 0}</td>
+                          <td className="border-l border-slate-100 px-3 py-2.5 text-center text-slate-600">{record.practices ?? 0}</td>
+                          <td className="border-l border-slate-100 px-3 py-2.5 text-center text-slate-600">{record.labWorks ?? 0}</td>
+                          <td className="border-l border-slate-100 px-3 py-2.5 text-center text-slate-600">{record.otherWorks ?? 0}</td>
+                          <td className="border-l border-slate-100 px-3 py-2.5 text-center text-xs">
+                            <span className="text-slate-500">{t('journal.execution.total')}:</span> {total}
+                            <span className="block text-slate-400">{t('journal.execution.remaining')}: {remaining}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                   <tfoot>
                     <tr className="border-t border-slate-200 bg-slate-50 font-semibold text-slate-700">
