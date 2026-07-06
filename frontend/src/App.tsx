@@ -3,6 +3,9 @@ import {api} from './services/api';
 import {DashboardPage} from './pages/DashboardPage';
 import {ModulePage} from './pages/ModulePage';
 import {WeeklySchedulePage} from './pages/WeeklySchedulePage';
+import {AttendanceJournalPage} from './pages/AttendanceJournalPage';
+import {PerformanceJournalPage} from './pages/PerformanceJournalPage';
+import {ExecutionSheetPage} from './pages/ExecutionSheetPage';
 import {Sidebar} from './components/layout/Sidebar';
 import {moduleConfigs} from './data/modules';
 import {useI18n} from './i18n';
@@ -34,6 +37,12 @@ function App() {
               <DashboardPage stats={stats} />
             ) : activePage === 'weekly-schedule' ? (
               <WeeklySchedulePage />
+            ) : activePage === 'attendance' ? (
+              <AttendanceJournalPage />
+            ) : activePage === 'academic-performance' ? (
+              <PerformanceJournalPage />
+            ) : activePage === 'execution' ? (
+              <ExecutionSheetPage />
             ) : currentModule ? (
               <ModulePage config={currentModule} />
             ) : null}

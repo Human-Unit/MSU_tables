@@ -1,4 +1,4 @@
-import {Activity, BookOpen, Building2, CalendarDays, CalendarRange, ClipboardCheck, ClipboardList, GraduationCap, LayoutDashboard, School, Users, UserRound, UserRoundSearch, UsersRound} from 'lucide-react';
+import {Activity, BookOpen, Building2, CalendarRange, ClipboardCheck, ClipboardList, GraduationCap, LayoutDashboard, School, Users, UserRound, UserRoundSearch, UsersRound} from 'lucide-react';
 import {cn} from '../../lib/utils';
 import {useI18n} from '../../i18n';
 import type {Lang} from '../../i18n';
@@ -21,7 +21,6 @@ const navItems = [
   {key: 'teachers', icon: UserRound},
   {key: 'subject', icon: ClipboardList},
   {key: 'discipline', icon: UserRoundSearch},
-  {key: 'schedule', icon: CalendarDays},
   {key: 'attendance', icon: ClipboardCheck},
   {key: 'academic-performance', icon: UsersRound},
   {key: 'execution', icon: Activity},

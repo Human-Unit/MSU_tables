@@ -10,11 +10,39 @@ import {RecordFormDialog} from '../components/RecordFormDialog';
 import {api} from '../services/api';
 import {cn} from '../lib/utils';
 import {useI18n} from '../i18n';
-import {moduleByKey} from '../data/modules';
-import type {ScheduleEntry, ScheduleFilterData} from '../types/modules';
-
-const WEEKDAYS = [1, 2, 3, 4, 5, 6];
-
+import type {ModuleConfig, ScheduleEntry, ScheduleFilterData} from '../types/modules';
+ 
+ const WEEKDAYS = [1, 2, 3, 4, 5, 6];
+ 
+ // Schedule module config for the edit/add dialog - defined locally since the schedule
+ // module page was removed while keeping the weekly schedule page.
+ const scheduleConfig: ModuleConfig = {
+   key: 'schedule',
+   title: 'Schedule',
+   subtitle: 'Manage weekly lesson timetable entries.',
+   searchPlaceholder: 'Search schedule...',
+   columns: [{key: 'weekday', label: 'col.weekday'}, {key: 'pair', label: 'col.pair'}, {key: 'subject.name', label: 'col.subject'}, {key: 'group.name', label: 'col.group'}],
+   fields: [
+     {name: 'weekday', label: 'field.weekday', type: 'select', required: true, valueType: 'number', options: [
+       {id: '1', label: 'day.1'},
+       {id: '2', label: 'day.2'},
+       {id: '3', label: 'day.3'},
+       {id: '4', label: 'day.4'},
+       {id: '5', label: 'day.5'},
+       {id: '6', label: 'day.6'},
+     ]},
+     {name: 'pair', label: 'field.pair', type: 'number', required: true, min: 1, max: 8},
+     {name: 'subjectId', label: 'field.subject', type: 'select', source: 'subject', required: true},
+     {name: 'teacherId', label: 'field.teacher', type: 'select', source: 'teachers', required: true},
+     {name: 'typeOfLesson', label: 'field.lessonType', type: 'select', required: true, options: [
+       {id: 'lecture', label: 'opt.lecture'},
+       {id: 'practice', label: 'opt.practice'},
+       {id: 'lab', label: 'opt.lab'},
+     ]},
+     {name: 'auditoriumId', label: 'field.auditorium', type: 'select', source: 'auditorium'},
+     {name: 'groupId', label: 'field.group', type: 'select', source: 'group', required: true},
+   ],
+ };
 const lessonBadgeClass: Record<string, string> = {
   lecture: 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-200',
   practice: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200',
@@ -22,8 +50,6 @@ const lessonBadgeClass: Record<string, string> = {
 };
 
 const emptyFilters: ScheduleFilterData = {faculties: [], vocations: [], groups: []};
-
-const scheduleConfig = moduleByKey.get('schedule')!;
 
 export function WeeklySchedulePage() {
   const {t} = useI18n();
