@@ -1,5 +1,6 @@
 import * as React from 'react';
 import {X} from 'lucide-react';
+import {createPortal} from 'react-dom';
 import {cn} from '../../lib/utils';
 import {Button} from './button';
 
@@ -9,6 +10,27 @@ type DialogContextValue = {
 };
 
 const DialogContext = React.createContext<DialogContextValue | null>(null);
+
+// Lock body scroll when dialog opens
+const useScrollLock = (open: boolean) => {
+  React.useEffect(() => {
+    if (open) {
+      const originalStyle = document.body.style;
+      const originalPadding = document.body.style.paddingRight;
+      
+      // Get scrollbar width to prevent layout shift
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      
+      document.body.style.overflow = 'hidden';
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+      
+      return () => {
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = originalPadding;
+      };
+    }
+  }, [open]);
+};
 
 export function Dialog({open, onOpenChange, children}: {open: boolean; onOpenChange: (open: boolean) => void; children: React.ReactNode}) {
   return <DialogContext.Provider value={{open, setOpen: onOpenChange}}>{children}</DialogContext.Provider>;
@@ -24,13 +46,27 @@ export function DialogTrigger({children}: {children: React.ReactNode}) {
 
 export function DialogContent({className, children}: React.HTMLAttributes<HTMLDivElement>) {
   const ctx = React.useContext(DialogContext);
+  useScrollLock(ctx?.open ?? false);
+  
   if (!ctx?.open) {
     return null;
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-      <div className={cn('relative w-full max-w-3xl rounded-3xl bg-white shadow-2xl', className)}>
+  // Use portal to render at body level to avoid scroll container issues
+  return createPortal(
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
+      onClick={(e) => {
+        // Close when clicking on backdrop (outside the dialog)
+        if (e.target === e.currentTarget) {
+          ctx.setOpen(false);
+        }
+      }}
+    >
+      <div 
+        className={cn('relative w-full max-w-3xl rounded-3xl bg-white shadow-2xl', className)}
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           type="button"
           aria-label="Close dialog"
@@ -41,7 +77,8 @@ export function DialogContent({className, children}: React.HTMLAttributes<HTMLDi
         </button>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -69,4 +106,3 @@ export function DialogCloseButton({onClick}: {onClick?: () => void}) {
   const ctx = React.useContext(DialogContext);
   return <Button variant="secondary" onClick={() => (onClick ? onClick() : ctx?.setOpen(false))}>Close</Button>;
 }
-

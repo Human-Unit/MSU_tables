@@ -20,9 +20,13 @@ func Seed(ctx context.Context, db *gorm.DB, adminUsername, adminPassword string)
 	}
 	// Attendance lives on a schema-sensitive table (day/sign columns are added by
 	// AutoMigrate, which runs after the SQL migrations), so it is seeded here in
-	// Go against the students created by the init_mock_data migration.
+	// Go Against the students created by the init_mock_data migration.
 	if err := seedAttendanceDemo(ctx, db); err != nil {
 		fmt.Println("attendance demo seed skipped:", err)
+	}
+	// Seed exam and zachet grades
+	if err := seedGradesDemo(ctx, db); err != nil {
+		fmt.Println("grades demo seed skipped:", err)
 	}
 
 	roleNames := []string{"Admin", "Instructor", "Student"}
@@ -302,6 +306,78 @@ func seedAttendanceDemo(ctx context.Context, db *gorm.DB) error {
 			record := models.Attendance{}
 			if err := tx.Where(models.Attendance{StudentID: sp.PersonID, DisciplineID: disc.ID, Day: sl.day, Pair: sl.pair}).
 				Attrs(models.Attendance{Status: status}).
+				FirstOrCreate(&record).Error; err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// seedGradesDemo creates mock exam and zachet grades for the demo students.
+func seedGradesDemo(ctx context.Context, db *gorm.DB) error {
+	tx := db.WithContext(ctx)
+
+	// Get all students
+	var students []models.StudentProfile
+	if err := tx.Find(&students).Error; err != nil {
+		return err
+	}
+
+	// Get all disciplines
+	var disciplines []models.Discipline
+	if err := tx.Preload("Subject").Preload("Teacher").Find(&disciplines).Error; err != nil {
+		return err
+	}
+
+	// Get discipline IDs for exam and zachet subjects
+	var examDisciplines []models.Discipline
+	var zachetDisciplines []models.Discipline
+	for _, d := range disciplines {
+		if d.Subject.FormOfControl == "Экзамен" {
+			examDisciplines = append(examDisciplines, d)
+		} else {
+			zachetDisciplines = append(zachetDisciplines, d)
+		}
+	}
+
+	// Seed exam grades (signs 1-5)
+	for _, student := range students {
+		for _, disc := range examDisciplines {
+			// Each student gets 1-2 exam grades for each exam discipline
+			sign := int16(3 + (student.PersonID.ID() % 3)) // 3, 4, or 5
+			if student.PersonID.ID()%7 == 0 {
+				sign = 2 // Some students get 2 (fail)
+			}
+			record := models.Exam{}
+			if err := tx.Where(models.Exam{StudentID: student.PersonID, DisciplineID: disc.ID}).
+				Attrs(models.Exam{
+					TeacherID: disc.TeacherID,
+					Tour:      1,
+					Sign:      sign,
+				}).
+				FirstOrCreate(&record).Error; err != nil {
+				return err
+			}
+		}
+	}
+
+	// Seed zachet grades (signs 0-3)
+	for _, student := range students {
+		for _, disc := range zachetDisciplines {
+			// Each student gets 1-2 zachet grades for each zachet discipline
+			sign := int16(1 + (student.PersonID.ID() % 3)) // 1, 2, or 3
+			if student.PersonID.ID()%5 == 0 {
+				sign = 0 // Some students get 0 (fail)
+			}
+			record := models.Zachet{}
+			if err := tx.Where(models.Zachet{StudentID: student.PersonID, DisciplineID: disc.ID}).
+				Attrs(models.Zachet{
+					TeacherID: disc.TeacherID,
+					Tour:      1,
+					Sign:      sign,
+				}).
 				FirstOrCreate(&record).Error; err != nil {
 				return err
 			}

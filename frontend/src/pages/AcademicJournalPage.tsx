@@ -1,5 +1,5 @@
+import {Lock, GraduationCap, Plus, ClipboardCheck} from 'lucide-react';
 import {useEffect, useMemo, useState} from 'react';
-import {GraduationCap, Plus, ClipboardCheck} from 'lucide-react';
 
 import {Button} from '../components/ui/button';
 import {Card, CardContent, CardHeader, CardTitle} from '../components/ui/card';
@@ -148,6 +148,33 @@ export function AcademicJournalPage() {
     return map;
   }, [cellMap]);
 
+  // Determine which tours are locked (if a lower tour has a passing grade, higher tours are locked)
+  // E.g., if tour 1 is passed -> lock tours 2 and 3; if tour 2 is passed -> lock tour 3
+  const lockedToursMap = useMemo(() => {
+    const map = new Map<string, Set<number>>(); // key: studentId|disciplineId, value: set of locked tour numbers
+    const maxTours = disciplineMaxTour;
+    
+    for (const [key, grades] of cellMap.entries()) {
+      const lockedTours = new Set<number>();
+      // Sort grades by tour ascending to find the first passing grade (lowest tour)
+      const sortedGrades = [...grades].sort((a, b) => Number(a.tour ?? 0) - Number(b.tour ?? 0));
+      
+      for (const grade of sortedGrades) {
+        if (isPass(viewMode === 'zachet', Number(grade.sign))) {
+          // Found a passing grade - lock all higher tours
+          const passingTour = Number(grade.tour ?? 0);
+          const maxTour = maxTours.get(key.split('|')[1]!) ?? DEFAULT_TOUR_COUNT;
+          for (let i = passingTour + 1; i <= maxTour; i++) {
+            lockedTours.add(i);
+          }
+          break;
+        }
+      }
+      map.set(key, lockedTours);
+    }
+    return map;
+  }, [cellMap, viewMode, disciplineMaxTour]);
+
   // Current config and title based on view mode
   const currentConfig = viewMode === 'exam' ? examConfig : zachetConfig;
   const currentTitle = viewMode === 'exam' ? t('module.exam.title') : t('module.zachet.title');
@@ -236,7 +263,7 @@ export function AcademicJournalPage() {
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50">
-                      <th className="sticky left-0 z-10 min-w-[220px] border-b border-r border-slate-200 bg-slate-50 px-3 py-3 text-left font-semibold text-slate-600">
+                      <th className="sticky left-0 z-20 min-w-[220px] border-b border-r border-slate-200 bg-slate-50 px-3 py-3 text-left font-semibold text-slate-600">
                         {t('col.student')}
                       </th>
                       {groupDisciplines.map((discipline) => {
@@ -262,7 +289,7 @@ export function AcademicJournalPage() {
                         return Array.from({length: tourCount}, (_, i) => i + 1).map((tour) => (
                           <th
                             key={`${discipline.id}-tour-${tour}`}
-                            className="min-w-[50px] border-b border-l border-slate-200 px-2 py-1 text-center text-xs font-semibold text-slate-500"
+                            className="min-w-[50px] border-b border-l border-slate-200 bg-slate-100 px-2 py-1 text-center text-xs font-semibold text-slate-500"
                           >
                             {t('field.tour')} {tour}
                           </th>
@@ -273,7 +300,7 @@ export function AcademicJournalPage() {
                   <tbody>
                     {groupStudents.map((student) => (
                       <tr key={student.personId} className="border-t border-slate-100">
-                        <td className="sticky left-0 z-10 border-r border-slate-200 bg-white px-3 py-2 font-medium text-slate-800">
+                        <td className="sticky left-0 z-10 min-w-[220px] border-r border-slate-200 bg-white px-3 py-2 font-medium text-slate-800">
                           <button
                             type="button"
                             title={t('common.viewDetails')}
@@ -285,8 +312,27 @@ export function AcademicJournalPage() {
                         </td>
                         {groupDisciplines.map((discipline) => {
                           const tourCount = disciplineMaxTour.get(discipline.id) ?? DEFAULT_TOUR_COUNT;
+                          const lockedTours = lockedToursMap.get(`${student.personId}|${discipline.id}`) ?? new Set();
                           return Array.from({length: tourCount}, (_, i) => i + 1).map((tour) => {
                             const grade = gradeMap.get(`${student.personId}|${discipline.id}|${tour}`);
+                            const isLocked = lockedTours.has(tour);
+                            // If tour is locked and no grade exists, show "skipped" instead of "+"
+                            if (isLocked && !grade) {
+                              return (
+                                <td
+                                  key={`${discipline.id}-tour-${tour}`}
+                                  className="border-l border-slate-100 px-2 py-1.5 text-center align-middle"
+                                >
+                                  <span
+                                    title={t('journal.tourLocked')}
+                                    className="inline-flex h-8 min-w-[34px] items-center justify-center rounded-lg px-2 text-xs font-semibold text-slate-400 ring-1 ring-slate-200 bg-slate-50 cursor-not-allowed"
+                                  >
+                                    —
+                                    <Lock className="ml-1 h-3 w-3" />
+                                  </span>
+                                </td>
+                              );
+                            }
                             return (
                               <td
                                 key={`${discipline.id}-tour-${tour}`}
@@ -294,14 +340,16 @@ export function AcademicJournalPage() {
                               >
                                 {grade ? (
                                   <span
-                                    title={`${t('field.tour')} ${tour}`}
+                                    title={isLocked ? t('journal.tourLocked') : `${t('field.tour')} ${tour}`}
                                     className={cn(
-                                      'inline-flex h-8 min-w-[34px] cursor-pointer items-center justify-center rounded-lg px-2 text-xs font-semibold ring-1',
+                                      'inline-flex h-8 min-w-[34px] items-center justify-center rounded-lg px-2 text-xs font-semibold ring-1',
+                                      isLocked && 'cursor-not-allowed opacity-70',
+                                      !isLocked && 'cursor-pointer',
                                       isPass(isZachet, Number(grade.sign))
                                         ? 'bg-emerald-100 text-emerald-700 ring-emerald-200'
                                         : 'bg-rose-100 text-rose-700 ring-rose-200',
                                     )}
-                                    onClick={() => openAdd({
+                                    onClick={isLocked ? undefined : () => openAdd({
                                       studentId: student.personId,
                                       disciplineId: discipline.id,
                                       teacherId: discipline.teacherId ?? discipline.teacher?.id ?? '',
@@ -309,6 +357,7 @@ export function AcademicJournalPage() {
                                     }, grade.id)}
                                   >
                                     {getScoreLabel(t, isZachet, Number(grade.sign))}
+                                    {isLocked && <Lock className="ml-1 h-3 w-3" />}
                                   </span>
                                 ) : (
                                   <button
