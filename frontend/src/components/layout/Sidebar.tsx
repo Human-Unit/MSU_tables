@@ -11,20 +11,20 @@ type SidebarProps = {
 };
 
 const navItems = [
-  {key: 'dashboard', icon: LayoutDashboard},
-  {key: 'weekly-schedule', icon: CalendarRange},
-  {key: 'faculty', icon: School},
-  {key: 'vocation', icon: BookOpen},
-  {key: 'group', icon: Users},
-  {key: 'auditorium', icon: Building2},
-  {key: 'students', icon: GraduationCap},
-  {key: 'teachers', icon: UserRound},
-  {key: 'subject', icon: ClipboardList},
-  {key: 'discipline', icon: UserRoundSearch},
-  {key: 'attendance', icon: ClipboardCheck},
-  {key: 'academic-performance', icon: UsersRound},
-  {key: 'execution', icon: Activity},
-];
+   {key: 'dashboard', icon: LayoutDashboard},
+   {key: 'weekly-schedule', icon: CalendarRange},
+   {key: 'faculty', icon: School},
+   {key: 'vocation', icon: BookOpen},
+   {key: 'group', icon: Users},
+   {key: 'auditorium', icon: Building2},
+   {key: 'students', icon: GraduationCap},
+   {key: 'teachers', icon: UserRound},
+   {key: 'subject', icon: ClipboardList},
+   {key: 'discipline', icon: UserRoundSearch},
+   {key: 'attendance', icon: ClipboardCheck},
+   {key: 'academic-journal', icon: GraduationCap},
+   {key: 'execution', icon: Activity},
+ ];
 
 const languages: {code: Lang; label: string}[] = [
   {code: 'ru', label: 'RU'},

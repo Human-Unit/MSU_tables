@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useState} from 'react';
-import {GraduationCap, Plus} from 'lucide-react';
+import {GraduationCap, Plus, ClipboardCheck} from 'lucide-react';
 
 import {Button} from '../components/ui/button';
 import {Card, CardContent, CardHeader, CardTitle} from '../components/ui/card';
@@ -21,13 +21,24 @@ function isPass(isZachet: boolean, sign: number): boolean {
   return isZachet ? sign >= 1 : sign >= 3;
 }
 
+// Get score label based on view mode and sign
+function getScoreLabel(t: (key: string) => string, isZachet: boolean, sign: number): string {
+  if (isZachet) {
+    return t(`zachet.${sign}` as 'zachet.0' | 'zachet.1' | 'zachet.2' | 'zachet.3');
+  }
+  return t(`score.${sign}` as 'score.1' | 'score.2' | 'score.3' | 'score.4' | 'score.5');
+}
+
 // Default number of tours to display per discipline
 const DEFAULT_TOUR_COUNT = 3;
 
-export function PerformanceJournalPage() {
+export function AcademicJournalPage() {
   const {t} = useI18n();
   const gf = useGroupFilters();
   const {groupId} = gf;
+
+  // View mode: 'exam' or 'zachet'
+  const [viewMode, setViewMode] = useState<'exam' | 'zachet'>('exam');
 
   const [students, setStudents] = useState<Rec[]>([]);
   const [disciplines, setDisciplines] = useState<Rec[]>([]);
@@ -37,7 +48,6 @@ export function PerformanceJournalPage() {
   const [refreshTick, setRefreshTick] = useState(0);
 
   const [formOpen, setFormOpen] = useState(false);
-  const [formConfig, setFormConfig] = useState<'exam' | 'zachet'>('exam');
   const [recordId, setRecordId] = useState<string | null>(null);
   const [addInitial, setAddInitial] = useState<Rec | undefined>(undefined);
 
@@ -88,12 +98,12 @@ export function PerformanceJournalPage() {
 
   const groupDisciplineIds = useMemo(() => new Set(groupDisciplines.map((discipline) => discipline.id)), [groupDisciplines]);
 
-  // Combine all records for the performance view
-  const allRecords = useMemo(() => [...examRecords, ...zachetRecords], [examRecords, zachetRecords]);
+  // Get records based on current view mode
+  const records = viewMode === 'exam' ? examRecords : zachetRecords;
 
   const cellMap = useMemo(() => {
     const map = new Map<string, Rec[]>();
-    for (const record of allRecords) {
+    for (const record of records) {
       if (!groupDisciplineIds.has(record.disciplineId)) continue;
       const key = `${record.studentId}|${record.disciplineId}`;
       const bucket = map.get(key);
@@ -104,21 +114,7 @@ export function PerformanceJournalPage() {
       bucket.sort((a, b) => Number(a.tour ?? 0) - Number(b.tour ?? 0));
     }
     return map;
-  }, [allRecords, groupDisciplineIds]);
-
-  // Build a map with key: studentId|disciplineId|tour, value: {record, isZachet}
-  const gradeMap = useMemo(() => {
-    const map = new Map<string, {record: Rec; isZachet: boolean}>();
-    
-    // Add exam records
-    for (const [key, grades] of cellMap.entries()) {
-      for (const grade of grades) {
-        const isZachet = zachetRecords.some((z) => z.id === grade.id);
-        map.set(`${key}|${grade.tour}`, {record: grade, isZachet});
-      }
-    }
-    return map;
-  }, [cellMap, zachetRecords]);
+  }, [records, groupDisciplineIds]);
 
   // Determine the maximum tour number per discipline
   const disciplineMaxTour = useMemo(() => {
@@ -141,14 +137,32 @@ export function PerformanceJournalPage() {
     return map;
   }, [cellMap, groupDisciplines]);
 
+  // Build a map with key: studentId|disciplineId|tour
+  const gradeMap = useMemo(() => {
+    const map = new Map<string, Rec>();
+    for (const [key, grades] of cellMap.entries()) {
+      for (const grade of grades) {
+        map.set(`${key}|${grade.tour}`, grade);
+      }
+    }
+    return map;
+  }, [cellMap]);
+
+  // Current config and title based on view mode
+  const currentConfig = viewMode === 'exam' ? examConfig : zachetConfig;
+  const currentTitle = viewMode === 'exam' ? t('module.exam.title') : t('module.zachet.title');
+  const currentSubtitle = viewMode === 'exam' ? t('journal.exam.subtitle') : t('journal.zachet.subtitle');
+  const currentAddLabel = viewMode === 'exam' ? t('journal.exam.add') : t('journal.zachet.add');
+  const currentNoDisciplinesLabel = viewMode === 'exam' ? t('journal.exam.noDisciplines') : t('journal.zachet.noDisciplines');
+  const currentHint = viewMode === 'exam' ? t('journal.exam.hint') : t('journal.zachet.hint');
+
   function reload() {
     setRefreshTick((tick) => tick + 1);
   }
 
-  function openAdd(prefill?: Rec, editId?: string | null, type?: 'exam' | 'zachet') {
+  function openAdd(prefill?: Rec, editId?: string | null) {
     setAddInitial(prefill);
     setRecordId(editId ?? null);
-    setFormConfig(type ?? 'exam');
     setFormOpen(true);
   }
 
@@ -158,7 +172,7 @@ export function PerformanceJournalPage() {
     setAddInitial(undefined);
   }
 
-  function openStudentEdit(studentId: string) {
+  function openStudentDialog(studentId: string) {
     setStudentRecordId(studentId);
     setStudentDialogOpen(true);
   }
@@ -168,27 +182,40 @@ export function PerformanceJournalPage() {
     setStudentRecordId(null);
   }
 
+  const isZachet = viewMode === 'zachet';
+  const Icon = viewMode === 'exam' ? GraduationCap : ClipboardCheck;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white">
-            <GraduationCap className="h-5 w-5" />
+            <Icon className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-3xl font-semibold text-slate-950">{t('module.academic-performance.title')}</h2>
-            <p className="mt-1 text-sm text-slate-500">{t('journal.performance.subtitle')}</p>
+            <h2 className="text-3xl font-semibold text-slate-950">{currentTitle}</h2>
+            <p className="mt-1 text-sm text-slate-500">{currentSubtitle}</p>
           </div>
         </div>
-        <Button className="gap-2" disabled={!groupId || groupDisciplines.length === 0} onClick={() => openAdd()}>
-          <Plus className="h-4 w-4" />
-          {t('journal.performance.add')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <select
+            value={viewMode}
+            onChange={(e) => setViewMode(e.target.value as 'exam' | 'zachet')}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+          >
+            <option value="exam">{t('opt.exam')}</option>
+            <option value="zachet">{t('opt.test')}</option>
+          </select>
+          <Button className="gap-2" disabled={!groupId || groupDisciplines.length === 0} onClick={() => openAdd()}>
+            <Plus className="h-4 w-4" />
+            {currentAddLabel}
+          </Button>
+        </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">{t('module.academic-performance.title')}</CardTitle>
+          <CardTitle className="text-lg">{currentTitle}</CardTitle>
           <div className="mt-4">
             <GroupFilters state={gf} />
           </div>
@@ -202,7 +229,7 @@ export function PerformanceJournalPage() {
           ) : groupStudents.length === 0 ? (
             <p className="py-10 text-center text-sm text-slate-500">{t('journal.noStudents')}</p>
           ) : groupDisciplines.length === 0 ? (
-            <p className="py-10 text-center text-sm text-slate-500">{t('journal.performance.noDisciplines')}</p>
+            <p className="py-10 text-center text-sm text-slate-500">{currentNoDisciplinesLabel}</p>
           ) : (
             <>
               <div className="overflow-x-auto rounded-2xl border border-slate-200">
@@ -250,8 +277,8 @@ export function PerformanceJournalPage() {
                           <button
                             type="button"
                             title={t('common.viewDetails')}
-                            onClick={() => openStudentEdit(student.personId)}
-                            className="cursor-pointer text-left font-medium text-slate-800 transition hover:text-slate-950"
+                            onClick={() => openStudentDialog(student.personId)}
+                            className="cursor-pointer text-left font-medium text-slate-800 transition hover:text-slate-950 hover:underline"
                           >
                             {student.fullName}
                           </button>
@@ -259,9 +286,7 @@ export function PerformanceJournalPage() {
                         {groupDisciplines.map((discipline) => {
                           const tourCount = disciplineMaxTour.get(discipline.id) ?? DEFAULT_TOUR_COUNT;
                           return Array.from({length: tourCount}, (_, i) => i + 1).map((tour) => {
-                            const gradeEntry = gradeMap.get(`${student.personId}|${discipline.id}|${tour}`);
-                            const grade = gradeEntry?.record;
-                            const isZachet = gradeEntry?.isZachet ?? false;
+                            const grade = gradeMap.get(`${student.personId}|${discipline.id}|${tour}`);
                             return (
                               <td
                                 key={`${discipline.id}-tour-${tour}`}
@@ -269,9 +294,9 @@ export function PerformanceJournalPage() {
                               >
                                 {grade ? (
                                   <span
-                                    title={`${isZachet ? t('opt.test') : t('opt.exam')} · ${t('field.tour')} ${tour}`}
+                                    title={`${t('field.tour')} ${tour}`}
                                     className={cn(
-                                      'inline-flex h-8 min-w-[34px] cursor-pointer items-center justify-center gap-0.5 rounded-lg px-1.5 text-xs font-semibold ring-1',
+                                      'inline-flex h-8 min-w-[34px] cursor-pointer items-center justify-center rounded-lg px-2 text-xs font-semibold ring-1',
                                       isPass(isZachet, Number(grade.sign))
                                         ? 'bg-emerald-100 text-emerald-700 ring-emerald-200'
                                         : 'bg-rose-100 text-rose-700 ring-rose-200',
@@ -281,22 +306,21 @@ export function PerformanceJournalPage() {
                                       disciplineId: discipline.id,
                                       teacherId: discipline.teacherId ?? discipline.teacher?.id ?? '',
                                       tour: tour,
-                                    }, grade.id, isZachet ? 'zachet' : 'exam')}
+                                    }, grade.id)}
                                   >
-                                    <span className="text-[10px] opacity-70">{isZachet ? t('form.short.test') : t('form.short.exam')}</span>
-                                    {grade.sign}
+                                    {getScoreLabel(t, isZachet, Number(grade.sign))}
                                   </span>
                                 ) : (
                                   <button
                                     type="button"
-                                    title={t('journal.performance.add')}
+                                    title={currentAddLabel}
                                     onClick={() =>
                                       openAdd({
                                         studentId: student.personId,
                                         disciplineId: discipline.id,
                                         teacherId: discipline.teacherId ?? discipline.teacher?.id ?? '',
                                         tour: tour,
-                                      }, undefined, 'exam')
+                                      })
                                     }
                                     className="inline-flex h-8 w-7 items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-50 hover:text-slate-500"
                                   >
@@ -312,7 +336,7 @@ export function PerformanceJournalPage() {
                   </tbody>
                 </table>
               </div>
-              <p className="mt-4 text-xs text-slate-400">{t('journal.performance.hint')}</p>
+              <p className="mt-4 text-xs text-slate-400">{currentHint}</p>
             </>
           )}
         </CardContent>
@@ -321,10 +345,10 @@ export function PerformanceJournalPage() {
       <RecordFormDialog
         open={formOpen}
         onOpenChange={closeDialog}
-        config={formConfig === 'zachet' ? zachetConfig : examConfig}
+        config={currentConfig}
         recordId={recordId}
         initialValues={addInitial}
-        title={formConfig === 'zachet' ? t('journal.zachet.add') : t('journal.exam.add')}
+        title={currentAddLabel}
         onSaved={reload}
       />
 

@@ -6,6 +6,7 @@ import {Card, CardContent, CardHeader, CardTitle} from '../components/ui/card';
 import {Select} from '../components/ui/select';
 import {RecordFormDialog} from '../components/RecordFormDialog';
 import {GroupFilters, useGroupFilters} from '../components/journal/GroupFilters';
+import {StudentInfoDialog} from '../components/StudentInfoDialog';
 import {api} from '../services/api';
 import {cn} from '../lib/utils';
 import {useI18n} from '../i18n';
@@ -39,6 +40,9 @@ export function AttendanceJournalPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [addInitial, setAddInitial] = useState<Rec | undefined>(undefined);
+
+  const [studentDialogOpen, setStudentDialogOpen] = useState(false);
+  const [studentRecordId, setStudentRecordId] = useState<string | null>(null);
 
   // Load the full record sets once; group/discipline filtering happens in memory.
   useEffect(() => {
@@ -148,6 +152,16 @@ export function AttendanceJournalPage() {
     setFormOpen(true);
   }
 
+  function openStudentView(studentId: string) {
+    setStudentRecordId(studentId);
+    setStudentDialogOpen(true);
+  }
+
+  function closeStudentDialog() {
+    setStudentDialogOpen(false);
+    setStudentRecordId(null);
+  }
+
   const showSubjectInHeader = disciplineId === '';
 
   return (
@@ -230,7 +244,14 @@ export function AttendanceJournalPage() {
                     {groupStudents.map((student) => (
                       <tr key={student.personId} className="border-t border-slate-100">
                         <td className="sticky left-0 z-10 border-r border-slate-200 bg-white px-3 py-2 font-medium text-slate-800">
-                          {student.fullName}
+                          <button
+                            type="button"
+                            title={t('common.viewDetails')}
+                            onClick={() => openStudentView(student.personId)}
+                            className="cursor-pointer text-left font-medium text-slate-800 transition hover:text-slate-950"
+                          >
+                            {student.fullName}
+                          </button>
                         </td>
                         {sessions.map((session) => {
                           const record = cellMap.get(`${student.personId}|${session.key}`);
@@ -291,6 +312,12 @@ export function AttendanceJournalPage() {
         title={editId ? `${t('common.edit')} — ${t('module.attendance.title')}` : t('journal.attendance.add')}
         onSaved={reload}
         onDeleted={reload}
+      />
+
+      <StudentInfoDialog
+        open={studentDialogOpen}
+        onOpenChange={closeStudentDialog}
+        studentId={studentRecordId}
       />
     </div>
   );

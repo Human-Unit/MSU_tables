@@ -4,8 +4,8 @@ import {DashboardPage} from './pages/DashboardPage';
 import {ModulePage} from './pages/ModulePage';
 import {WeeklySchedulePage} from './pages/WeeklySchedulePage';
 import {AttendanceJournalPage} from './pages/AttendanceJournalPage';
-import {PerformanceJournalPage} from './pages/PerformanceJournalPage';
 import {ExecutionSheetPage} from './pages/ExecutionSheetPage';
+import {AcademicJournalPage} from './pages/AcademicJournalPage';
 import {Sidebar} from './components/layout/Sidebar';
 import {moduleConfigs} from './data/modules';
 import {useI18n} from './i18n';
@@ -39,8 +39,8 @@ function App() {
               <WeeklySchedulePage />
             ) : activePage === 'attendance' ? (
               <AttendanceJournalPage />
-            ) : activePage === 'academic-performance' ? (
-              <PerformanceJournalPage />
+            ) : activePage === 'academic-journal' ? (
+              <AcademicJournalPage />
             ) : activePage === 'execution' ? (
               <ExecutionSheetPage />
             ) : currentModule ? (

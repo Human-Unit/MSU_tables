@@ -293,9 +293,10 @@ func (s *SimpleModuleService) registerModules() {
 		},
 		func() any { return &models.Attendance{} },
 	)
-	s.modules["academic-performance"] = simpleModule(
-		"academic-performance",
-		[]string{"form_of_control"},
+	// Exam module - for formal exams (sign: 1-5, pass >= 3)
+	s.modules["exam"] = simpleModule(
+		"exam",
+		nil,
 		[]string{"Student", "Discipline", "Discipline.Subject", "Teacher"},
 		func(item map[string]any) string { return nestedString(item, "student", "fullName") },
 		func(ctx context.Context, db *gorm.DB, data map[string]any, _ bool) error {
@@ -308,49 +309,98 @@ func (s *SimpleModuleService) registerModules() {
 			if err := ensureExists(ctx, db, &models.Person{}, uuidValue(data["teacherId"]), "teacherId"); err != nil {
 				return err
 			}
-			if err := models.FormOfControl(stringValue(data["formOfControl"])).Valid(); err != nil {
+			if tour := intValue(data["tour"]); tour < 1 {
+				return fmt.Errorf("%w: tour must be greater than zero", ErrValidation)
+			}
+			sign := intValue(data["sign"])
+			if sign < 1 || sign > 5 {
+				return fmt.Errorf("%w: exam sign must be between 1 and 5", ErrValidation)
+			}
+			return nil
+		},
+		func() any { return &models.Exam{} },
+	)
+
+	// Zachet module - for pass/fail tests (sign: 0-3, pass >= 1)
+	s.modules["zachet"] = simpleModule(
+		"zachet",
+		nil,
+		[]string{"Student", "Discipline", "Discipline.Subject", "Teacher"},
+		func(item map[string]any) string { return nestedString(item, "student", "fullName") },
+		func(ctx context.Context, db *gorm.DB, data map[string]any, _ bool) error {
+			if err := ensureExists(ctx, db, &models.Person{}, uuidValue(data["studentId"]), "studentId"); err != nil {
+				return err
+			}
+			if err := ensureExists(ctx, db, &models.Discipline{}, uuidValue(data["disciplineId"]), "disciplineId"); err != nil {
+				return err
+			}
+			if err := ensureExists(ctx, db, &models.Person{}, uuidValue(data["teacherId"]), "teacherId"); err != nil {
 				return err
 			}
 			if tour := intValue(data["tour"]); tour < 1 {
 				return fmt.Errorf("%w: tour must be greater than zero", ErrValidation)
 			}
 			sign := intValue(data["sign"])
-			switch models.FormOfControl(stringValue(data["formOfControl"])) {
-			case models.ControlTest:
-				if sign < 0 || sign > 3 {
-					return fmt.Errorf("%w: test sign must be between 0 and 3", ErrValidation)
-				}
-			case models.ControlExam:
-				if sign < 1 || sign > 5 {
-					return fmt.Errorf("%w: exam sign must be between 1 and 5", ErrValidation)
-				}
+			if sign < 0 || sign > 3 {
+				return fmt.Errorf("%w: zachet sign must be between 0 and 3", ErrValidation)
 			}
 			return nil
 		},
-		func() any { return &models.AcademicPerformance{} },
+		func() any { return &models.Zachet{} },
 	)
+
 	s.modules["execution"] = simpleModule(
 		"execution",
 		nil,
 		[]string{"Teacher", "Discipline", "Discipline.Subject"},
 		func(item map[string]any) string { return nestedString(item, "teacher", "fullName") },
 		func(ctx context.Context, db *gorm.DB, data map[string]any, _ bool) error {
-			if err := ensureExists(ctx, db, &models.Person{}, uuidValue(data["teacherId"]), "teacherId"); err != nil {
+			teacherID := uuidValue(data["teacherId"])
+			if teacherID == uuid.Nil {
+				return fmt.Errorf("%w: teacherId is required", ErrValidation)
+			}
+			disciplineID := uuidValue(data["disciplineId"])
+			if disciplineID == uuid.Nil {
+				return fmt.Errorf("%w: disciplineId is required", ErrValidation)
+			}
+
+			// Fetch the discipline with subject to check planned hours
+			var discipline models.Discipline
+			if err := db.WithContext(ctx).Preload("Subject").First(&discipline, "id = ?", disciplineID).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return fmt.Errorf("%w: discipline not found", ErrValidation)
+				}
 				return err
 			}
-			if err := ensureExists(ctx, db, &models.Discipline{}, uuidValue(data["disciplineId"]), "disciplineId"); err != nil {
+
+			lectures := intValue(data["lectures"])
+			practices := intValue(data["practices"])
+			labWorks := intValue(data["labWorks"])
+			otherWorks := intValue(data["otherWorks"])
+
+			if err := requireNonNegativeInt(lectures, "lectures"); err != nil {
 				return err
 			}
-			if err := requireNonNegativeInt(intValue(data["lectures"]), "lectures"); err != nil {
+			if err := requireNonNegativeInt(practices, "practices"); err != nil {
 				return err
 			}
-			if err := requireNonNegativeInt(intValue(data["practices"]), "practices"); err != nil {
+			if err := requireNonNegativeInt(labWorks, "labWorks"); err != nil {
 				return err
 			}
-			if err := requireNonNegativeInt(intValue(data["labWorks"]), "labWorks"); err != nil {
+			if err := requireNonNegativeInt(otherWorks, "otherWorks"); err != nil {
 				return err
 			}
-			return requireNonNegativeInt(intValue(data["otherWorks"]), "otherWorks")
+
+			// Calculate entered total hours
+			enteredTotal := lectures + practices + labWorks + otherWorks
+
+			// Check against subject's total planned hours
+			subjectHours := discipline.Subject.QuantityOfHours
+			if enteredTotal > subjectHours {
+				return fmt.Errorf("%w: total entered hours (%d) cannot exceed subject total hours (%d)", ErrValidation, enteredTotal, subjectHours)
+			}
+
+			return nil
 		},
 		func() any { return &models.Execution{} },
 	)
