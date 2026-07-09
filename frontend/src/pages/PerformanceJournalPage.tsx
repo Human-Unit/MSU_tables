@@ -23,6 +23,8 @@ function isPass(isZachet: boolean, sign: number): boolean {
 
 // Default number of tours to display per discipline
 const DEFAULT_TOUR_COUNT = 3;
+// Maximum number of tours allowed
+const MAX_TOUR_COUNT = 10;
 
 export function PerformanceJournalPage() {
   const {t} = useI18n();
@@ -36,6 +38,9 @@ export function PerformanceJournalPage() {
   const [loading, setLoading] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
 
+  // Track explicit tour counts per discipline (for "Add Tour" button)
+  const [tourCounts, setTourCounts] = useState<Map<string, number>>(new Map());
+
   const [formOpen, setFormOpen] = useState(false);
   const [formConfig, setFormConfig] = useState<'exam' | 'zachet'>('exam');
   const [recordId, setRecordId] = useState<string | null>(null);
@@ -43,6 +48,18 @@ export function PerformanceJournalPage() {
 
   const [studentDialogOpen, setStudentDialogOpen] = useState(false);
   const [studentRecordId, setStudentRecordId] = useState<string | null>(null);
+
+  // Add a new tour column for a discipline
+  function addTour(disciplineId: string) {
+    setTourCounts(prev => {
+      const newMap = new Map(prev);
+      const currentCount = newMap.get(disciplineId) ?? 0;
+      if (currentCount < MAX_TOUR_COUNT) {
+        newMap.set(disciplineId, currentCount + 1);
+      }
+      return newMap;
+    });
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -120,7 +137,8 @@ export function PerformanceJournalPage() {
     return map;
   }, [cellMap, zachetRecords]);
 
-  // Determine the maximum tour number per discipline
+  // Determine the maximum tour number per discipline (includes explicit tour count from addTour button)
+  // tourCounts stores the number of EXTRA tours to add beyond the calculated max
   const disciplineMaxTour = useMemo(() => {
     const map = new Map<string, number>();
     for (const [key, grades] of cellMap.entries()) {
@@ -132,14 +150,18 @@ export function PerformanceJournalPage() {
         }
       }
     }
-    // Set defaults to 3 for disciplines without grades
+    // Set defaults and add extra tours from tourCounts
     for (const discipline of groupDisciplines) {
       if (!map.has(discipline.id)) {
+        // Default to 3 for disciplines without grades
         map.set(discipline.id, DEFAULT_TOUR_COUNT);
       }
+      // Add extra tours from tourCounts (each increment adds 1 more tour)
+      const extraTours = tourCounts.get(discipline.id) ?? 0;
+      map.set(discipline.id, (map.get(discipline.id) ?? DEFAULT_TOUR_COUNT) + extraTours);
     }
     return map;
-  }, [cellMap, groupDisciplines]);
+  }, [cellMap, groupDisciplines, tourCounts]);
 
   function reload() {
     setRefreshTick((tick) => tick + 1);
@@ -222,6 +244,16 @@ export function PerformanceJournalPage() {
                           >
                             <div>{discipline.subject?.name ?? '—'}</div>
                             <div className="text-[11px] font-normal text-slate-400">{discipline.teacher?.fullName ?? ''}</div>
+                            {tourCount < MAX_TOUR_COUNT && (
+                              <button
+                                type="button"
+                                title={t('journal.addTour')}
+                                onClick={() => addTour(discipline.id)}
+                                className="inline-flex h-5 w-5 items-center justify-center rounded text-slate-400 transition hover:bg-slate-200 hover:text-slate-600"
+                              >
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            )}
                           </th>
                         );
                       })}
@@ -235,7 +267,7 @@ export function PerformanceJournalPage() {
                         return Array.from({length: tourCount}, (_, i) => i + 1).map((tour) => (
                           <th
                             key={`${discipline.id}-tour-${tour}`}
-                            className="min-w-[50px] border-b border-l border-slate-200 px-2 py-1 text-center text-xs font-semibold text-slate-500"
+                            className="min-w-[50px] border-b border-l border-slate-200 bg-slate-100 px-2 py-1 text-center text-xs font-semibold text-slate-500"
                           >
                             {t('field.tour')} {tour}
                           </th>

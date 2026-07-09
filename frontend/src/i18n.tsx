@@ -198,6 +198,7 @@ const en: Dict = {
   'journal.zachet.noDisciplines': 'No disciplines for this group yet.',
   'journal.zachet.hint': 'Click a zachet grade to edit it, or a "+" to add a grade for that student and subject.',
   'journal.tourLocked': 'Locked: passed in earlier tour',
+  'journal.addTour': 'Add Tour',
   'journal.execution.subtitle': 'Teacher workload: lecture, practice and lab hours per discipline.',
   'journal.execution.add': 'Add workload',
   'journal.execution.empty': 'No workload records for this teacher yet.',
@@ -434,7 +435,7 @@ const ru: Dict = {
   'score.4': 'Хорошо',
   'score.3': 'Удов.',
   'score.2': 'Неудов.',
-  'score.1': 'Неудов.',
+  'score.1': 'Неявка',
 
   // Russian zachet score labels (0-3).
   'zachet.3': 'Зачёт',
@@ -466,6 +467,7 @@ const ru: Dict = {
   'journal.zachet.noDisciplines': 'Для этой группы пока нет дисциплин.',
   'journal.zachet.hint': 'Нажмите на зачётную оценку, чтобы изменить её, или на "+" чтобы добавить оценку студенту.',
   'journal.tourLocked': 'Заблокировано: пройден ранее',
+  'journal.addTour': 'Добавить тур',
   'journal.execution.subtitle': 'Нагрузка преподавателя: часы лекций, практик и лабораторных по дисциплинам.',
   'journal.execution.add': 'Добавить нагрузку',
   'journal.execution.empty': 'Для этого преподавателя пока нет записей о нагрузке.',

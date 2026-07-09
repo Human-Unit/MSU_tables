@@ -1,5 +1,5 @@
-import {Lock, GraduationCap, Plus, ClipboardCheck} from 'lucide-react';
-import {useEffect, useMemo, useState} from 'react';
+import {Lock, GraduationCap, Plus, ClipboardCheck, ChevronDown} from 'lucide-react';
+import {useEffect, useMemo, useState, useRef, useCallback} from 'react';
 
 import {Button} from '../components/ui/button';
 import {Card, CardContent, CardHeader, CardTitle} from '../components/ui/card';
@@ -31,6 +31,8 @@ function getScoreLabel(t: (key: string) => string, isZachet: boolean, sign: numb
 
 // Default number of tours to display per discipline
 const DEFAULT_TOUR_COUNT = 3;
+// Maximum number of tours allowed
+const MAX_TOUR_COUNT = 10;
 
 export function AcademicJournalPage() {
   const {t} = useI18n();
@@ -47,12 +49,30 @@ export function AcademicJournalPage() {
   const [loading, setLoading] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
 
+  // Track explicit tour counts per discipline (for "Add Tour" button)
+  const [tourCounts, setTourCounts] = useState<Map<string, number>>(new Map());
+
+  // Track dropdown state for quick grade selection
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+
   const [formOpen, setFormOpen] = useState(false);
   const [recordId, setRecordId] = useState<string | null>(null);
   const [addInitial, setAddInitial] = useState<Rec | undefined>(undefined);
 
   const [studentDialogOpen, setStudentDialogOpen] = useState(false);
   const [studentRecordId, setStudentRecordId] = useState<string | null>(null);
+
+  // Add a new tour column for a discipline
+  function addTour(disciplineId: string) {
+    setTourCounts(prev => {
+      const newMap = new Map(prev);
+      const currentCount = newMap.get(disciplineId) ?? 0;
+      if (currentCount < MAX_TOUR_COUNT) {
+        newMap.set(disciplineId, currentCount + 1);
+      }
+      return newMap;
+    });
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -116,7 +136,8 @@ export function AcademicJournalPage() {
     return map;
   }, [records, groupDisciplineIds]);
 
-  // Determine the maximum tour number per discipline
+  // Determine the maximum tour number per discipline (includes explicit tour count from addTour button)
+  // tourCounts stores the number of EXTRA tours to add beyond the calculated max
   const disciplineMaxTour = useMemo(() => {
     const map = new Map<string, number>();
     for (const [key, grades] of cellMap.entries()) {
@@ -128,14 +149,18 @@ export function AcademicJournalPage() {
         }
       }
     }
-    // Set defaults to 3 for disciplines without grades
+    // Set defaults and add extra tours from tourCounts
     for (const discipline of groupDisciplines) {
       if (!map.has(discipline.id)) {
+        // Default to 3 for disciplines without grades
         map.set(discipline.id, DEFAULT_TOUR_COUNT);
       }
+      // Add extra tours from tourCounts (each increment adds 1 more tour)
+      const extraTours = tourCounts.get(discipline.id) ?? 0;
+      map.set(discipline.id, (map.get(discipline.id) ?? DEFAULT_TOUR_COUNT) + extraTours);
     }
     return map;
-  }, [cellMap, groupDisciplines]);
+  }, [cellMap, groupDisciplines, tourCounts]);
 
   // Build a map with key: studentId|disciplineId|tour
   const gradeMap = useMemo(() => {
@@ -175,19 +200,63 @@ export function AcademicJournalPage() {
     return map;
   }, [cellMap, viewMode, disciplineMaxTour]);
 
-  // Current config and title based on view mode
-  const currentConfig = viewMode === 'exam' ? examConfig : zachetConfig;
-  const currentTitle = viewMode === 'exam' ? t('module.exam.title') : t('module.zachet.title');
-  const currentSubtitle = viewMode === 'exam' ? t('journal.exam.subtitle') : t('journal.zachet.subtitle');
-  const currentAddLabel = viewMode === 'exam' ? t('journal.exam.add') : t('journal.zachet.add');
-  const currentNoDisciplinesLabel = viewMode === 'exam' ? t('journal.exam.noDisciplines') : t('journal.zachet.noDisciplines');
-  const currentHint = viewMode === 'exam' ? t('journal.exam.hint') : t('journal.zachet.hint');
+  // Is zachet mode based on view mode
+  const isZachet = viewMode === 'zachet';
+  const Icon = viewMode === 'exam' ? GraduationCap : ClipboardCheck;
+
+  // Reload function must be defined before quickSaveGrade
+  const reloadRef = useRef<() => void>();
+  reloadRef.current = () => {
+    setRefreshTick((tick) => tick + 1);
+  };
+
+  // Quick save grade from dropdown (only used when clicking existing grade)
+  const quickSaveGrade = useCallback(async (sign: number, studentId: string, disciplineId: string, tour: number, recordId?: string | null) => {
+    try {
+      const currentKey = viewMode === 'exam' ? 'exam' : 'zachet';
+      if (recordId) {
+        await api.update(currentKey, recordId, {sign});
+      } else {
+        await api.create(currentKey, {
+          studentId,
+          disciplineId,
+          teacherId: disciplines.find(d => d.id === disciplineId)?.teacherId ?? '',
+          tour,
+          sign,
+        });
+      }
+      reloadRef.current?.();
+    } catch (error) {
+      console.error('Failed to save grade:', error);
+    }
+    setOpenDropdown(null);
+  }, [disciplines, viewMode]);
+
+  // Get available scores based on view mode (for dropdown)
+  function getAvailableScores() {
+    if (isZachet) {
+      return [
+        {value: 3, label: t('zachet.3')},
+        {value: 2, label: t('zachet.2')},
+        {value: 1, label: t('zachet.1')},
+        {value: 0, label: t('zachet.0')},
+      ];
+    }
+    return [
+      {value: 5, label: t('score.5')},
+      {value: 4, label: t('score.4')},
+      {value: 3, label: t('score.3')},
+      {value: 2, label: t('score.2')},
+      {value: 1, label: t('score.1')},
+    ];
+  }
 
   function reload() {
     setRefreshTick((tick) => tick + 1);
   }
 
   function openAdd(prefill?: Rec, editId?: string | null) {
+    setOpenDropdown(null); // Close dropdown when opening full dialog
     setAddInitial(prefill);
     setRecordId(editId ?? null);
     setFormOpen(true);
@@ -209,8 +278,13 @@ export function AcademicJournalPage() {
     setStudentRecordId(null);
   }
 
-  const isZachet = viewMode === 'zachet';
-  const Icon = viewMode === 'exam' ? GraduationCap : ClipboardCheck;
+  // Current config and title based on view mode
+  const currentConfig = viewMode === 'exam' ? examConfig : zachetConfig;
+  const currentTitle = viewMode === 'exam' ? t('module.exam.title') : t('module.zachet.title');
+  const currentSubtitle = viewMode === 'exam' ? t('journal.exam.subtitle') : t('journal.zachet.subtitle');
+  const currentAddLabel = viewMode === 'exam' ? t('journal.exam.add') : t('journal.zachet.add');
+  const currentNoDisciplinesLabel = viewMode === 'exam' ? t('journal.exam.noDisciplines') : t('journal.zachet.noDisciplines');
+  const currentHint = viewMode === 'exam' ? t('journal.exam.hint') : t('journal.zachet.hint');
 
   return (
     <div className="space-y-6">
@@ -276,6 +350,16 @@ export function AcademicJournalPage() {
                           >
                             <div>{discipline.subject?.name ?? '—'}</div>
                             <div className="text-[11px] font-normal text-slate-400">{discipline.teacher?.fullName ?? ''}</div>
+                            {tourCount < MAX_TOUR_COUNT && (
+                              <button
+                                type="button"
+                                title={t('journal.addTour')}
+                                onClick={() => addTour(discipline.id)}
+                                className="inline-flex h-5 w-5 items-center justify-center rounded text-slate-400 transition hover:bg-slate-200 hover:text-slate-600"
+                              >
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            )}
                           </th>
                         );
                       })}
@@ -316,6 +400,8 @@ export function AcademicJournalPage() {
                           return Array.from({length: tourCount}, (_, i) => i + 1).map((tour) => {
                             const grade = gradeMap.get(`${student.personId}|${discipline.id}|${tour}`);
                             const isLocked = lockedTours.has(tour);
+                            const dropdownKey = `${student.personId}|${discipline.id}|${tour}`;
+                            const isOpen = openDropdown === dropdownKey;
                             // If tour is locked and no grade exists, show "skipped" instead of "+"
                             if (isLocked && !grade) {
                               return (
@@ -339,38 +425,62 @@ export function AcademicJournalPage() {
                                 className="border-l border-slate-100 px-2 py-1.5 text-center align-middle"
                               >
                                 {grade ? (
-                                  <span
-                                    title={isLocked ? t('journal.tourLocked') : `${t('field.tour')} ${tour}`}
-                                    className={cn(
-                                      'inline-flex h-8 min-w-[34px] items-center justify-center rounded-lg px-2 text-xs font-semibold ring-1',
-                                      isLocked && 'cursor-not-allowed opacity-70',
-                                      !isLocked && 'cursor-pointer',
-                                      isPass(isZachet, Number(grade.sign))
-                                        ? 'bg-emerald-100 text-emerald-700 ring-emerald-200'
-                                        : 'bg-rose-100 text-rose-700 ring-rose-200',
+                                  <div className="relative inline-block">
+                                    <span
+                                      title={isLocked ? t('journal.tourLocked') : `${t('field.tour')} ${tour}`}
+                                      className={cn(
+                                        'inline-flex h-8 min-w-[34px] items-center justify-center rounded-lg px-2 text-xs font-semibold ring-1',
+                                        isLocked && 'cursor-not-allowed opacity-70',
+                                        !isLocked && 'cursor-pointer',
+                                        isPass(isZachet, Number(grade.sign))
+                                          ? 'bg-emerald-100 text-emerald-700 ring-emerald-200'
+                                          : 'bg-rose-100 text-rose-700 ring-rose-200',
+                                      )}
+                                      onClick={isLocked ? undefined : () => {
+                                        if (isOpen) {
+                                          setOpenDropdown(null);
+                                        } else {
+                                          setOpenDropdown(dropdownKey);
+                                        }
+                                      }}
+                                    >
+                                      {getScoreLabel(t, isZachet, Number(grade.sign))}
+                                      {isLocked && <Lock className="ml-1 h-3 w-3" />}
+                                      {!isLocked && <ChevronDown className="ml-1 h-3 w-3 opacity-50" />}
+                                    </span>
+                                    {isOpen && !isLocked && (
+                                      <div className="absolute left-0 top-full z-50 mt-1 min-w-[120px] rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+                                        <div className="flex flex-col gap-0.5">
+                                          {getAvailableScores().map((score) => (
+                                            <button
+                                              key={score.value}
+                                              type="button"
+                                              onClick={() => quickSaveGrade(score.value, student.personId, discipline.id, tour, grade.id)}
+                                              className={cn(
+                                                'w-full rounded px-2 py-1 text-left text-xs transition',
+                                                score.value === grade.sign
+                                                  ? 'bg-slate-100 font-semibold'
+                                                  : 'hover:bg-slate-50',
+                                              )}
+                                            >
+                                              {score.label}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
                                     )}
-                                    onClick={isLocked ? undefined : () => openAdd({
-                                      studentId: student.personId,
-                                      disciplineId: discipline.id,
-                                      teacherId: discipline.teacherId ?? discipline.teacher?.id ?? '',
-                                      tour: tour,
-                                    }, grade.id)}
-                                  >
-                                    {getScoreLabel(t, isZachet, Number(grade.sign))}
-                                    {isLocked && <Lock className="ml-1 h-3 w-3" />}
-                                  </span>
+                                  </div>
                                 ) : (
+                                  // Empty cell - open form dialog when clicking "+"
                                   <button
                                     type="button"
                                     title={currentAddLabel}
-                                    onClick={() =>
-                                      openAdd({
-                                        studentId: student.personId,
-                                        disciplineId: discipline.id,
-                                        teacherId: discipline.teacherId ?? discipline.teacher?.id ?? '',
-                                        tour: tour,
-                                      })
-                                    }
+                                    onClick={() => openAdd({
+                                      studentId: student.personId,
+                                      disciplineId: discipline.id,
+                                      teacherId: disciplines.find(d => d.id === discipline.id)?.teacherId ?? '',
+                                      tour: String(tour),
+                                    })}
                                     className="inline-flex h-8 w-7 items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-50 hover:text-slate-500"
                                   >
                                     <Plus className="h-3.5 w-3.5" />

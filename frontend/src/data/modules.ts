@@ -155,7 +155,13 @@ export const moduleConfigs: ModuleConfig[] = [
           {name: 'disciplineId', label: 'field.discipline', type: 'select', source: 'discipline', required: true},
           {name: 'teacherId', label: 'field.teacher', type: 'select', source: 'teachers', required: true},
           {name: 'tour', label: 'field.tour', type: 'number', required: true, min: 1},
-          {name: 'sign', label: 'field.sign', type: 'number', required: true, min: 1, max: 5},
+          {name: 'sign', label: 'field.sign', type: 'select', required: true, valueType: 'number', options: [
+            {id: '5', label: 'score.5'},
+            {id: '4', label: 'score.4'},
+            {id: '3', label: 'score.3'},
+            {id: '2', label: 'score.2'},
+            {id: '1', label: 'score.1'},
+          ]},
         ],
       },
     {
@@ -169,7 +175,12 @@ export const moduleConfigs: ModuleConfig[] = [
           {name: 'disciplineId', label: 'field.discipline', type: 'select', source: 'discipline', required: true},
           {name: 'teacherId', label: 'field.teacher', type: 'select', source: 'teachers', required: true},
           {name: 'tour', label: 'field.tour', type: 'number', required: true, min: 1},
-          {name: 'sign', label: 'field.sign', type: 'number', required: true, min: 0, max: 3},
+          {name: 'sign', label: 'field.sign', type: 'select', required: true, valueType: 'number', options: [
+            {id: '3', label: 'zachet.3'},
+            {id: '2', label: 'zachet.2'},
+            {id: '1', label: 'zachet.1'},
+            {id: '0', label: 'zachet.0'},
+          ]},
         ],
       },
   {
