@@ -432,15 +432,15 @@ const ru: Dict = {
   // Russian score labels (1-5 for exams).
   'score.5': 'Отлично',
   'score.4': 'Хорошо',
-  'score.3': 'Удовл.',
+  'score.3': 'Удов.',
   'score.2': 'Неудов.',
-  'score.1': 'Провал',
+  'score.1': 'Неудов.',
 
   // Russian zachet score labels (0-3).
   'zachet.3': 'Зачёт',
   'zachet.2': 'Пересдача',
-  'zachet.1': 'Провал',
-  'zachet.0': 'Провал',
+  'zachet.1': 'Неудов.',
+  'zachet.0': 'Неудов.',
 
   // Страницы-журналы (посещаемость, успеваемость, нагрузка).
   'journal.selectGroup': 'Выберите группу...',

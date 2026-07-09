@@ -1,7 +1,7 @@
 -- Split academic_performance into separate exam and zachet tables
 -- This migration creates the new tables and migrates existing data
 
--- Create exam table (signs 1-5, passing grade ≥ 3)
+-- Create exam table (signs 0-5, passing grade ≥ 3, 0 = absence/неявка)
 CREATE TABLE IF NOT EXISTS exam (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_at TIMESTAMP NOT NULL DEFAULT now(),
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS exam (
     discipline_id UUID NOT NULL,
     teacher_id UUID NOT NULL,
     tour INT NOT NULL DEFAULT 1,
-    sign INT NOT NULL CHECK (sign >= 1 AND sign <= 5),
+    sign INT NOT NULL CHECK (sign >= 0 AND sign <= 5),
     CONSTRAINT fk_exam_student FOREIGN KEY (student_id) REFERENCES person(id) ON DELETE CASCADE,
     CONSTRAINT fk_exam_discipline FOREIGN KEY (discipline_id) REFERENCES discipline(id) ON DELETE CASCADE,
     CONSTRAINT fk_exam_teacher FOREIGN KEY (teacher_id) REFERENCES person(id) ON DELETE RESTRICT

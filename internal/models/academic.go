@@ -4,7 +4,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Exam represents a formal exam assessment (signs 1-5, passing grade is 3 or higher)
+// Exam represents a formal exam assessment (signs 0-5, passing grade is 3 or higher)
 type Exam struct {
 	Base
 	StudentID    uuid.UUID  `gorm:"type:uuid;not null;index" json:"studentId"`
@@ -14,7 +14,7 @@ type Exam struct {
 	TeacherID    uuid.UUID  `gorm:"type:uuid;not null;index" json:"teacherId"`
 	Teacher      Person     `gorm:"foreignKey:TeacherID;constraint:OnDelete:RESTRICT" json:"teacher"`
 	Tour         int        `gorm:"default:1" json:"tour"`
-	Sign         int16      `gorm:"not null;check:sign >= 1 AND sign <= 5" json:"sign"`
+	Sign         int16      `gorm:"not null;check:sign >= 0 AND sign <= 5" json:"sign"`
 }
 
 func (Exam) TableName() string { return "exam" }
