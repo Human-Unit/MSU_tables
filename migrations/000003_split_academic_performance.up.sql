@@ -1,7 +1,7 @@
 -- Split academic_performance into separate exam and zachet tables
 -- This migration creates the new tables and migrates existing data
 
--- Create exam table (signs 0-5, passing grade ≥ 3, 0 = absence/неявка)
+-- Create exam table (signs 0-5, passing grade ≥ 3, 0 = absence/неявка, max 2 changes)
 CREATE TABLE IF NOT EXISTS exam (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_at TIMESTAMP NOT NULL DEFAULT now(),
@@ -12,12 +12,13 @@ CREATE TABLE IF NOT EXISTS exam (
     teacher_id UUID NOT NULL,
     tour INT NOT NULL DEFAULT 1,
     sign INT NOT NULL CHECK (sign >= 0 AND sign <= 5),
+    sign_changes INT NOT NULL DEFAULT 0 CHECK (sign_changes >= 0 AND sign_changes <= 2),
     CONSTRAINT fk_exam_student FOREIGN KEY (student_id) REFERENCES person(id) ON DELETE CASCADE,
     CONSTRAINT fk_exam_discipline FOREIGN KEY (discipline_id) REFERENCES discipline(id) ON DELETE CASCADE,
     CONSTRAINT fk_exam_teacher FOREIGN KEY (teacher_id) REFERENCES person(id) ON DELETE RESTRICT
 );
 
--- Create zachet table (signs 0-3, passing grade ≥ 1)
+-- Create zachet table (signs 0-3, passing grade ≥ 1, max 2 changes)
 CREATE TABLE IF NOT EXISTS zachet (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_at TIMESTAMP NOT NULL DEFAULT now(),
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS zachet (
     teacher_id UUID NOT NULL,
     tour INT NOT NULL DEFAULT 1,
     sign INT NOT NULL CHECK (sign >= 0 AND sign <= 3),
+    sign_changes INT NOT NULL DEFAULT 0 CHECK (sign_changes >= 0 AND sign_changes <= 2),
     CONSTRAINT fk_zachet_student FOREIGN KEY (student_id) REFERENCES person(id) ON DELETE CASCADE,
     CONSTRAINT fk_zachet_discipline FOREIGN KEY (discipline_id) REFERENCES discipline(id) ON DELETE CASCADE,
     CONSTRAINT fk_zachet_teacher FOREIGN KEY (teacher_id) REFERENCES person(id) ON DELETE RESTRICT

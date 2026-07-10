@@ -293,7 +293,7 @@ func (s *SimpleModuleService) registerModules() {
 		},
 		func() any { return &models.Attendance{} },
 	)
-	// Exam module - for formal exams (sign: 1-5, pass >= 3)
+	// Exam module - for formal exams (sign: 1-5, pass >= 3, max 2 sign changes)
 	s.modules["exam"] = simpleModule(
 		"exam",
 		nil,
@@ -321,7 +321,7 @@ func (s *SimpleModuleService) registerModules() {
 		func() any { return &models.Exam{} },
 	)
 
-	// Zachet module - for pass/fail tests (sign: 0-3, pass >= 1)
+	// Zachet module - for pass/fail tests (sign: 0-3, pass >= 1, max 2 sign changes)
 	s.modules["zachet"] = simpleModule(
 		"zachet",
 		nil,
@@ -453,6 +453,10 @@ func (s *SimpleModuleService) Update(ctx context.Context, module string, id stri
 	if !ok {
 		return nil, fmt.Errorf("%w: unknown module %s", ErrValidation, module)
 	}
+	// Special handling for sign changes increment
+	if module == "exam" || module == "zachet" {
+		return s.saveEntityWithSignChange(ctx, module, payload, id)
+	}
 	return saveEntity(ctx, s.db, def, payload, id, false)
 }
 
@@ -470,6 +474,58 @@ func (s *SimpleModuleService) Options(ctx context.Context, module string) ([]mod
 		return nil, fmt.Errorf("%w: unknown module %s", ErrValidation, module)
 	}
 	return listOptions(ctx, s.db, def)
+}
+
+// saveEntityWithSignChange handles updating exam/zachet records with sign changes tracking
+func (s *SimpleModuleService) saveEntityWithSignChange(ctx context.Context, module string, payload map[string]any, id string) (map[string]any, error) {
+	// Check sign changes limit
+	if id != "" {
+		var signChanges int
+		var err error
+		switch module {
+		case "exam":
+			var exam models.Exam
+			if err = s.db.WithContext(ctx).Model(&models.Exam{}).Select("sign_changes").Where("id = ?", id).First(&exam).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, ErrNotFound
+				}
+				return nil, err
+			}
+			signChanges = exam.SignChanges
+		case "zachet":
+			var zachet models.Zachet
+			if err = s.db.WithContext(ctx).Model(&models.Zachet{}).Select("sign_changes").Where("id = ?", id).First(&zachet).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, ErrNotFound
+				}
+				return nil, err
+			}
+			signChanges = zachet.SignChanges
+		}
+		if signChanges >= 2 {
+			return nil, fmt.Errorf("%w: grade can only be changed 2 times", ErrValidation)
+		}
+	}
+
+	def, ok := s.modules[module]
+	if !ok {
+		return nil, fmt.Errorf("%w: unknown module %s", ErrValidation, module)
+	}
+
+	// Use raw SQL to increment sign_changes atomically
+	if id != "" {
+		if err := s.db.WithContext(ctx).Exec(fmt.Sprintf("UPDATE %s SET sign = ?, sign_changes = sign_changes + 1 WHERE id = ?", module), payload["sign"], id).Error; err != nil {
+			return nil, fmt.Errorf("update failed: %w", err)
+		}
+	} else {
+		itemType := reflect.TypeOf(def.New())
+		itemPtr := reflect.New(itemType.Elem()).Interface()
+		if err := s.db.WithContext(ctx).Create(itemPtr).Error; err != nil {
+			return nil, fmt.Errorf("create failed: %w", err)
+		}
+	}
+
+	return getEntity(ctx, s.db, def, id)
 }
 
 func listEntities(ctx context.Context, db *gorm.DB, def SimpleModule, search string, page, pageSize int) (models.PageResult, error) {

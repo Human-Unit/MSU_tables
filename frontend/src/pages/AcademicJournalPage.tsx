@@ -33,6 +33,8 @@ function getScoreLabel(t: (key: string) => string, isZachet: boolean, sign: numb
 const DEFAULT_TOUR_COUNT = 3;
 // Maximum number of tours allowed
 const MAX_TOUR_COUNT = 10;
+// Maximum number of sign changes allowed
+const MAX_SIGN_CHANGES = 2;
 
 export function AcademicJournalPage() {
   const {t} = useI18n();
@@ -174,6 +176,7 @@ export function AcademicJournalPage() {
   }, [cellMap]);
 
   // Determine which tours are locked (if a lower tour has a passing grade, higher tours are locked)
+  // Also lock grades that have been changed 2 times already
   // E.g., if tour 1 is passed -> lock tours 2 and 3; if tour 2 is passed -> lock tour 3
   const lockedToursMap = useMemo(() => {
     const map = new Map<string, Set<number>>(); // key: studentId|disciplineId, value: set of locked tour numbers
@@ -185,8 +188,13 @@ export function AcademicJournalPage() {
       const sortedGrades = [...grades].sort((a, b) => Number(a.tour ?? 0) - Number(b.tour ?? 0));
       
       for (const grade of sortedGrades) {
+        // Check if sign has been changed 2 times already
+        const signChanges = Number(grade.signChanges ?? 0);
+        if (signChanges >= MAX_SIGN_CHANGES) {
+          lockedTours.add(Number(grade.tour));
+        }
+        // Check if this is a passing grade - lock higher tours
         if (isPass(viewMode === 'zachet', Number(grade.sign))) {
-          // Found a passing grade - lock all higher tours
           const passingTour = Number(grade.tour ?? 0);
           const maxTour = maxTours.get(key.split('|')[1]!) ?? DEFAULT_TOUR_COUNT;
           for (let i = passingTour + 1; i <= maxTour; i++) {
@@ -215,7 +223,8 @@ export function AcademicJournalPage() {
     try {
       const currentKey = viewMode === 'exam' ? 'exam' : 'zachet';
       if (recordId) {
-        await api.update(currentKey, recordId, {sign});
+        // Increment sign changes when updating
+        await api.update(currentKey, recordId, {sign, signChanges: "increment"});
       } else {
         await api.create(currentKey, {
           studentId,
@@ -232,7 +241,7 @@ export function AcademicJournalPage() {
     setOpenDropdown(null);
   }, [disciplines, viewMode]);
 
-  // Get available scores based on view mode (for dropdown)
+// Get available scores based on view mode (for dropdown)
   function getAvailableScores() {
     if (isZachet) {
       return [
@@ -249,6 +258,37 @@ export function AcademicJournalPage() {
       {value: 2, label: t('score.2')},
       {value: 1, label: t('score.1')},
     ];
+  }
+
+  // Get tour label with visual distinction
+  function getTourLabel(tour: number) {
+    if (tour === 1) return t('journal.tour1');
+    if (tour === 2) return t('journal.tour2');
+    return t('journal.tour3plus', {n: tour});
+  }
+
+  // Get tooltip for locked cells explaining the reason
+  function getLockTooltip(grade: Rec | null, tour: number) {
+    if (!grade) return t('journal.tourLocked');
+    
+    const signChanges = Number(grade.signChanges ?? 0);
+    if (signChanges >= MAX_SIGN_CHANGES) {
+      return t('journal.tourLockedChanges');
+    }
+    
+    // Find which tour had the passing grade
+    const cellKey = `${grade.studentId}|${grade.disciplineId}`;
+    const allGrades = cellMap.get(cellKey) || [];
+    const sortedGrades = [...allGrades].sort((a, b) => Number(a.tour ?? 0) - Number(b.tour ?? 0));
+    
+    for (const g of sortedGrades) {
+      const sign = Number(g.sign ?? 0);
+      const isPassInLowerTour = isPass(isZachet, sign);
+      if (isPassInLowerTour && Number(g.tour ?? 0) < tour) {
+        return t('journal.tourLockedPassed', {tour: Number(g.tour ?? 0)});
+      }
+    }
+    return t('journal.tourLocked');
   }
 
   function reload() {
@@ -350,14 +390,15 @@ export function AcademicJournalPage() {
                           >
                             <div>{discipline.subject?.name ?? '—'}</div>
                             <div className="text-[11px] font-normal text-slate-400">{discipline.teacher?.fullName ?? ''}</div>
-                            {tourCount < MAX_TOUR_COUNT && (
+{tourCount < MAX_TOUR_COUNT && (
                               <button
                                 type="button"
                                 title={t('journal.addTour')}
                                 onClick={() => addTour(discipline.id)}
-                                className="inline-flex h-5 w-5 items-center justify-center rounded text-slate-400 transition hover:bg-slate-200 hover:text-slate-600"
+                                className="inline-flex items-center gap-1 text-xs text-slate-400 transition hover:text-slate-600"
                               >
                                 <Plus className="h-3 w-3" />
+                                <span>{tourCount}/{MAX_TOUR_COUNT}</span>
                               </button>
                             )}
                           </th>
@@ -370,14 +411,17 @@ export function AcademicJournalPage() {
                       </th>
                       {groupDisciplines.map((discipline) => {
                         const tourCount = disciplineMaxTour.get(discipline.id) ?? DEFAULT_TOUR_COUNT;
-                        return Array.from({length: tourCount}, (_, i) => i + 1).map((tour) => (
-                          <th
-                            key={`${discipline.id}-tour-${tour}`}
-                            className="min-w-[50px] border-b border-l border-slate-200 bg-slate-100 px-2 py-1 text-center text-xs font-semibold text-slate-500"
-                          >
-                            {t('field.tour')} {tour}
-                          </th>
-                        ));
+                        return Array.from({length: tourCount}, (_, i) => i + 1).map((tour) => {
+                          const tourLabelClass = tour === 1 ? 'text-sky-600' : tour === 2 ? 'text-amber-600' : 'text-slate-500';
+                          return (
+                            <th
+                              key={`${discipline.id}-tour-${tour}`}
+                              className="min-w-[50px] border-b border-l border-slate-200 bg-slate-100 px-2 py-1 text-center text-xs font-semibold text-slate-500"
+                            >
+                              <span className={tourLabelClass}>{tour === 1 ? t('journal.tour1') : tour === 2 ? t('journal.tour2') : t('journal.tour3plus', {n: tour})}</span>
+                            </th>
+                          );
+                        });
                       })}
                     </tr>
                   </thead>
@@ -427,7 +471,7 @@ export function AcademicJournalPage() {
                                 {grade ? (
                                   <div className="relative inline-block">
                                     <span
-                                      title={isLocked ? t('journal.tourLocked') : `${t('field.tour')} ${tour}`}
+                                      title={isLocked ? getLockTooltip(grade, tour) : `${t('field.tour')} ${tour}`}
                                       className={cn(
                                         'inline-flex h-8 min-w-[34px] items-center justify-center rounded-lg px-2 text-xs font-semibold ring-1',
                                         isLocked && 'cursor-not-allowed opacity-70',

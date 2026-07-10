@@ -15,6 +15,7 @@ type Exam struct {
 	Teacher      Person     `gorm:"foreignKey:TeacherID;constraint:OnDelete:RESTRICT" json:"teacher"`
 	Tour         int        `gorm:"default:1" json:"tour"`
 	Sign         int16      `gorm:"not null;check:sign >= 0 AND sign <= 5" json:"sign"`
+	SignChanges  int        `gorm:"default:0" json:"signChanges"` // Number of times the sign has been changed (max 2)
 }
 
 func (Exam) TableName() string { return "exam" }
@@ -30,6 +31,7 @@ type Zachet struct {
 	Teacher      Person     `gorm:"foreignKey:TeacherID;constraint:OnDelete:RESTRICT" json:"teacher"`
 	Tour         int        `gorm:"default:1" json:"tour"`
 	Sign         int16      `gorm:"not null;check:sign >= 0 AND sign <= 3" json:"sign"`
+	SignChanges  int        `gorm:"default:0" json:"signChanges"` // Number of times the sign has been changed (max 2)
 }
 
 func (Zachet) TableName() string { return "zachet" }
