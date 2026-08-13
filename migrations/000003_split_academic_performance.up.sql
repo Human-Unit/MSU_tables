@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS exam (
     student_id UUID NOT NULL,
     discipline_id UUID NOT NULL,
     teacher_id UUID NOT NULL,
+    date DATE,
     tour INT NOT NULL DEFAULT 1,
     sign INT NOT NULL CHECK (sign >= 0 AND sign <= 5),
     sign_changes INT NOT NULL DEFAULT 0 CHECK (sign_changes >= 0 AND sign_changes <= 2),
@@ -27,6 +28,7 @@ CREATE TABLE IF NOT EXISTS zachet (
     student_id UUID NOT NULL,
     discipline_id UUID NOT NULL,
     teacher_id UUID NOT NULL,
+    date DATE,
     tour INT NOT NULL DEFAULT 1,
     sign INT NOT NULL CHECK (sign >= 0 AND sign <= 3),
     sign_changes INT NOT NULL DEFAULT 0 CHECK (sign_changes >= 0 AND sign_changes <= 2),
@@ -36,15 +38,15 @@ CREATE TABLE IF NOT EXISTS zachet (
 );
 
 -- Migrate existing exam records (form_of_control = 'exam') to exam table
-INSERT INTO exam (id, created_at, updated_at, is_active, student_id, discipline_id, teacher_id, tour, sign)
-SELECT id, created_at, updated_at, is_active, student_id, discipline_id, teacher_id, tour, sign
+INSERT INTO exam (id, created_at, updated_at, is_active, student_id, discipline_id, teacher_id, tour, sign, sign_changes)
+SELECT id, created_at, updated_at, is_active, student_id, discipline_id, teacher_id, tour, sign, 0 as sign_changes
 FROM academic_performance
 WHERE form_of_control = 'exam'
 ON CONFLICT (id) DO NOTHING;
 
 -- Migrate existing test records (form_of_control = 'test') to zachet table
-INSERT INTO zachet (id, created_at, updated_at, is_active, student_id, discipline_id, teacher_id, tour, sign)
-SELECT id, created_at, updated_at, is_active, student_id, discipline_id, teacher_id, tour, sign
+INSERT INTO zachet (id, created_at, updated_at, is_active, student_id, discipline_id, teacher_id, tour, sign, sign_changes)
+SELECT id, created_at, updated_at, is_active, student_id, discipline_id, teacher_id, tour, sign, 0 as sign_changes
 FROM academic_performance
 WHERE form_of_control = 'test'
 ON CONFLICT (id) DO NOTHING;

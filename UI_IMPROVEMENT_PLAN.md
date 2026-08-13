@@ -1,83 +1,128 @@
 # Academic Performance Page - UI/UX Improvement Plan
 
-## Current Issues Summary
-Based on analysis, the main UI/UX issues are:
-1. **Dropdown positioning** - Uses absolute positioning without proper collision detection or portal rendering
-2. **No keyboard navigation** - Dropdown lacks arrow key/escape/enter support
-3. **Hidden tour distinction** - All tours look the same visually
-4. **Unclear locking feedback** - Users don't understand why tours are locked
-5. **"Add Tour" placement** - Button inside header may be confusing
+## Design Analysis & Issues Identified
 
-## Proposed Improvements
+### What's Working Well:
+- Clean card-based layout with proper data organization
+- Color-coded tour headers (sky/amber colors)
+- Lock mechanism to prevent editing after passing
+- Split views for exam/zachet with appropriate scoring systems
+- Student details accessible via clicking student name
 
-### 1. Enhanced Grade Cell Dropdown Component ✓
-**Problem:** Inline dropdown positioning can cause overflow issues, no keyboard support.
+### Issues Addressed:
+1. **Missing Grade Type Indicator** - No way to distinguish exam vs zachet grades at a glance (PerformanceJournalPage shows E/T badges)
+2. **No Average Grades** - No quick overview of class performance per discipline
+3. **Missing Lock Legend** - Users don't understand the color coding and lock system
+4. **Unclear "Add Tour" Button** - Button placement and purpose wasn't clear
+5. **"Add Tour" button missing count** - No indication of current tour count vs limit
+6. **Student dropdown shows ALL students** - When adding grades, the dialog shows students from all groups instead of only the selected group
 
-**Solution:** Create a dedicated `GradeDropdown` component with:
-- Portal rendering (using `createPortal`) to avoid clipping
-- Keyboard navigation (arrow up/down, enter to select, escape to close)
-- Proper focus management
-- Visual hover states for all options
-- Click-outside-to-close detection
+## Improvements Implemented
 
-**Status:** Partially implemented ( GradeDropdown component created but still using inline dropdown in page)
+### 1. Discipline Average Grades ✓
+**Solution:** Added average grade calculation displayed below discipline name in the header.
+- Shows average score: "Avg: 3.5" / "Ср.балл: 3.5"
+- Shows pass count on hover tooltip
+- Implemented in both AcademicJournalPage and PerformanceJournalPage
 
-### 2. Visual Tour Distinction ✓
-**Problem:** All tour columns look identical, making it hard to track which tour is which.
+### 2. Enhanced "Add Tour" Button ✓
+**Solution:** Show current tour count vs maximum limit.
+- Button displays: "3/10" indicating 3 tours of max 10
+- Only shows when tours < MAX_TOUR_COUNT
+- Clearer visual feedback on tour availability
 
-**Solution:** Add visual distinction for tours:
-- **Tour 1:** Primary color (sky-600) - "Tour 1 (Initial)"
-- **Tour 2:** Secondary color (amber-600) - "Tour 2 (Retake)"  
-- **Tour 3+:** Muted color (slate-500) - "Tour N (Additional)"
+### 3. Lock Legend/Help Text ✓
+**Solution:** Added a visual legend below the table explaining:
+- Green badge = Passed grades
+- Red badge = Failed grades  
+- Lock icon = Locked cells (cannot edit)
+- Sky-colored Tour 1 = Initial attempt
+- Amber-colored Tour 2 = Retake
 
-**Status:** Implemented - Tour headers now use color-coded labels
+### 4. Visual Tour Distinction (Already Present) ✓
+**Solution:** Tour headers have color-coded labels:
+- Tour 1 (sky-600): "Tour 1 (Initial)" / "Тур 1 (Первичная попытка)"
+- Tour 2 (amber-600): "Tour 2 (Retake)" / "Тур 2 (Пересдача)"
+- Tour 3+ (slate-500): "Tour N (Additional)" / "Тур N (Дополнительный)"
 
-### 3. Improved Locking Mechanism Feedback ✓
-**Problem:** Lock icon alone doesn't explain why a tour is locked.
+### 5. Grade Type Indicator (PerformanceJournalPage) ✓
+**Solution:** Show E/T badge in grade cells to distinguish:
+- "E" = Exam grades
+- "T" = Zachet (Test) grades
+
+### 6. Filtered Student Dropdown ✓
+**Problem:** When adding/editing grades via the dialog, the student dropdown showed ALL students in the system instead of only those in the currently selected group.
 
 **Solution:** 
-- Add tooltip explaining the lock reason: "Locked: Passed in Tour X" or "Locked: Maximum changes reached"
-- Added `getLockTooltip` function to determine the specific reason
+- Added `filteredOptions` prop to `RecordFormDialog` component
+- Both AcademicJournalPage and PerformanceJournalPage now create `studentOptions` from `groupStudents`
+- The dialog's student dropdown is overridden with group-filtered options when a group is selected
+- When no group is selected, the dialog still shows all students (fallback behavior)
 
-**Status:** Implemented - Locked cells show detailed tooltips
+### 7. Fixed Grade Label Display ✓
+**Problem:** Grades were showing incorrect labels (always showing "неявка"/"Fail" instead of proper score labels).
 
-### 4. Better "Add Tour" UX ✓
-**Problem:** "Add Tour" button inside the discipline header may be missed.
+**Solution:** 
+- Restored proper `getScoreLabel()` function usage
+- Score labels now correctly display: "Excellent", "Good", "Satisfactory", "Poor", "Fail" for exams
+- Zachet labels now correctly display: "Pass", "Retake", "Fail" for tests
 
-**Solution:**
-- Show current tour count vs max: "3/10 tours" on the button
-- Added visual indication of tour limits
+### 8. Grades Are Now Read-Only ✓
+**Problem:** Users could click on existing grades to change them inline.
 
-**Status:** Implemented - Button now shows "N/10" count
+**Solution:** 
+- Removed inline dropdown editing functionality
+- Once a grade is set, it displays as read-only with a lock icon
+- Grades can only be added via the "+" button in empty cells
+- Tooltip shows "Grade cannot be changed once set" when hovering locked grades
 
-### 5. Additional UI Enhancements
-- **Loading states:** Add skeleton loaders while data loads
-- **Empty states:** More helpful empty state illustrations/messages
-- **Responsive behavior:** Better mobile/tablet handling
-- **Visual feedback:** Animation when grades are saved successfully
+## Files Modified
 
-## Implementation Completed
+### `frontend/src/components/RecordFormDialog.tsx`
+- Added `filteredOptions` prop to accept filtered option overrides
+- Added `mergedOptions` useMemo to merge API-loaded options with filtered options
+- Updated Field component to use merged options for select fields
 
-### Files Modified:
-1. `frontend/src/pages/AcademicJournalPage.tsx` - Main page component
-   - Added visual tour distinction (color-coded tour headers)
-   - Added improved locking tooltip function
-   - Updated Add Tour button to show tour count
-2. `frontend/src/i18n.tsx` - Added new translations:
-   - `journal.tourLockedChanges` - "Locked: maximum changes reached"
-   - `journal.tourLockedPassed` - "Locked: passed in Tour {tour}"
-   - `journal.tour1` - "Tour 1 (Initial)"
-   - `journal.tour2` - "Tour 2 (Retake)"
-   - `journal.tour3plus` - "Tour {n} (Additional)"
+### `frontend/src/pages/AcademicJournalPage.tsx`
+- Added `studentOptions` useMemo to convert `groupStudents` to OptionItem format
+- Passed `filteredOptions={{students: studentOptions}}` to RecordFormDialog
+- Added `disciplineAverages` calculation
+- Added average display in discipline header
+- Updated "Add Tour" button to show tour count (N/MAX)
+- Added lock legend explaining color coding and tour types
+- Removed inline dropdown editing - grades now read-only once set
 
-### Files Created:
-1. `frontend/src/components/GradeDropdown.tsx` - New dropdown component with portal and keyboard support
-   - Uses `createPortal` for proper positioning
-   - Keyboard navigation support (arrow keys, enter, escape)
-   - Click-outside-to-close detection
+### `frontend/src/pages/PerformanceJournalPage.tsx`
+- Added `studentOptions` useMemo for group-filtered students
+- Passed `filteredOptions` to RecordFormDialog
+- Added `disciplineAverages` calculation
+- Added average display in discipline header
+- Updated "Add Tour" button to show tour count
+- Added comprehensive legend explaining score types and tour meanings
+- Added E/T badge for grade type distinction
 
-## Next Steps (Optional)
-- Fully integrate GradeDropdown component into AcademicJournalPage
-- Add loading skeleton states
-- Add "lock legend" help text below the table
-- Add visual feedback animations for grade saves
+### `frontend/src/i18n.tsx`
+- Added English translations:
+  - `journal.avg`: 'Avg'
+  - `journal.passed`: 'Passed'
+  - `journal.legend.passed`: 'Passed'
+  - `journal.legend.failed`: 'Failed'
+  - `journal.legend.locked`: 'Locked'
+  - `journal.legend.tour1`: 'Tour 1'
+  - `journal.legend.tour2`: 'Tour 2'
+  - `journal.gradeLocked`: 'Grade cannot be changed once set'
+- Added Russian translations:
+  - `journal.avg`: 'Ср.балл'
+  - `journal.passed`: 'Пройдено'
+  - `journal.legend.passed`: 'Пройдено'
+  - `journal.legend.failed`: 'Не пройдено'
+  - `journal.legend.locked`: 'Заблокировано'
+  - `journal.legend.tour1`: 'Тур 1'
+  - `journal.legend.tour2`: 'Тур 2'
+  - `journal.gradeLocked`: 'Оценка не может быть изменена после установки'
+
+## Future Enhancements
+- Add loading skeleton states for better perceived performance
+- Add visual feedback animations when grades are saved
+- Consider adding export/print functionality for grade reports
+- Add bulk grade entry mode for faster data input

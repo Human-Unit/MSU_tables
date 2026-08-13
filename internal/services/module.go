@@ -518,11 +518,8 @@ func (s *SimpleModuleService) saveEntityWithSignChange(ctx context.Context, modu
 			return nil, fmt.Errorf("update failed: %w", err)
 		}
 	} else {
-		itemType := reflect.TypeOf(def.New())
-		itemPtr := reflect.New(itemType.Elem()).Interface()
-		if err := s.db.WithContext(ctx).Create(itemPtr).Error; err != nil {
-			return nil, fmt.Errorf("create failed: %w", err)
-		}
+		// For new records, use saveEntity to properly create with the payload
+		return saveEntity(ctx, s.db, def, payload, "", true)
 	}
 
 	return getEntity(ctx, s.db, def, id)

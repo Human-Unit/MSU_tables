@@ -149,6 +149,8 @@ func Migrate(db *gorm.DB) error {
 		&models.Attendance{},
 		&models.AcademicPerformance{},
 		&models.Execution{},
+		&models.Exam{},
+		&models.Zachet{},
 		&models.User{},
 		&models.Session{},
 	); err != nil {

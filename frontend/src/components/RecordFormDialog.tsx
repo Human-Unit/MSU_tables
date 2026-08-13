@@ -32,6 +32,9 @@ type RecordFormDialogProps = {
   onSaved?: () => void;
   // When provided, a Delete button is shown in edit mode.
   onDeleted?: () => void;
+  // Optional filtered options to override API-loaded options (e.g., filter students by group).
+  // Key is the field name, value is the filtered options array.
+  filteredOptions?: Record<string, OptionItem[]>;
 };
 
 export function RecordFormDialog({
@@ -43,6 +46,7 @@ export function RecordFormDialog({
   title,
   onSaved,
   onDeleted,
+  filteredOptions,
 }: RecordFormDialogProps) {
   const {t} = useI18n();
   const editing = Boolean(recordId);
@@ -52,6 +56,37 @@ export function RecordFormDialog({
   const [options, setOptions] = useState<Record<string, OptionItem[]>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Merge filtered options with API-loaded options
+  const mergedOptions = useMemo(() => {
+    if (!filteredOptions) return options;
+    return {...options, ...filteredOptions};
+  }, [options, filteredOptions]);
+
+  // Apply dynamic filtering when disciplineId is pre-filled:
+  // - Filter teachers to show only the discipline's assigned teacher
+  // - Filter disciplines to show only the selected discipline
+  const dynamicOptions = useMemo(() => {
+    const next: Record<string, OptionItem[]> = {...mergedOptions};
+    
+    // When disciplineId is pre-filled, find the discipline and filter related options
+    if (initialValues?.disciplineId && !recordId) {
+      // Find the selected discipline to get its teacher
+      const disciplineOption = mergedOptions.discipline?.find(opt => opt.id === initialValues.disciplineId);
+      if (disciplineOption) {
+        // Filter teachers to show only the discipline's teacher
+        // The teacherId is stored in the initialValues, but we need to show the teacher name
+        // We need to filter teachers by the discipline's teacher
+        const teacherId = initialValues.teacherId;
+        if (teacherId && mergedOptions.teachers) {
+          next.teachers = mergedOptions.teachers.filter((t) => t.id === teacherId);
+        }
+        // Show only the selected discipline
+        next.discipline = [disciplineOption];
+      }
+    }
+    return next;
+  }, [mergedOptions, initialValues?.disciplineId, initialValues?.teacherId, recordId]);
 
   // Load select option sources whenever the dialog opens.
   useEffect(() => {
@@ -182,7 +217,7 @@ export function RecordFormDialog({
                 field={field}
                 register={register}
                 errors={errors}
-                options={options[field.source ?? ''] ?? field.options ?? []}
+                options={dynamicOptions[field.source ?? ''] ?? field.options ?? []}
                 watch={watch}
                 editing={editing}
                 t={t}

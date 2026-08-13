@@ -1,24 +1,30 @@
-import {Lock, GraduationCap, Plus, ClipboardCheck, ChevronDown} from 'lucide-react';
-import {useEffect, useMemo, useState, useRef, useCallback} from 'react';
+import {Lock, GraduationCap, Plus, ClipboardCheck} from 'lucide-react';
+import {useEffect, useMemo, useState, useRef} from 'react';
 
 import {Button} from '../components/ui/button';
 import {Card, CardContent, CardHeader, CardTitle} from '../components/ui/card';
 import {RecordFormDialog} from '../components/RecordFormDialog';
+import {TourDateDialog} from '../components/TourDateDialog';
 import {GroupFilters, useGroupFilters} from '../components/journal/GroupFilters';
 import {StudentInfoDialog} from '../components/StudentInfoDialog';
 import {api} from '../services/api';
 import {cn} from '../lib/utils';
 import {useI18n} from '../i18n';
 import {moduleByKey} from '../data/modules';
+import type {OptionItem} from '../types/modules';
 
 type Rec = Record<string, any>;
 
 const examConfig = moduleByKey.get('exam')!;
 const zachetConfig = moduleByKey.get('zachet')!;
 
-// Exam: sign >= 3 is passing, Zachet: sign >= 1 is passing
+// Base date: 01.05.2026 - used for estimated dates
+const BASE_DATE_ISO = '2026-05-01';
+
+// Exam: sign >= 3 is passing, Zachet: only sign >= 3 (Зачёт) is passing
+// sign=1,2 are fail (Неудов./Пересдача)
 function isPass(isZachet: boolean, sign: number): boolean {
-  return isZachet ? sign >= 1 : sign >= 3;
+  return isZachet ? sign >= 3 : sign >= 3;
 }
 
 // Get score label based on view mode and sign
@@ -30,11 +36,32 @@ function getScoreLabel(t: (key: string) => string, isZachet: boolean, sign: numb
 }
 
 // Default number of tours to display per discipline
-const DEFAULT_TOUR_COUNT = 3;
+const DEFAULT_TOUR_COUNT = 1;
 // Maximum number of tours allowed
-const MAX_TOUR_COUNT = 10;
+const MAX_TOUR_COUNT = 3;
 // Maximum number of sign changes allowed
 const MAX_SIGN_CHANGES = 2;
+
+// Helper to get today's date in YYYY-MM-DD format for date input
+function getTodayDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Helper to format a date for display from YYYY-MM-DD to DD.MM.YYYY
+function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  return `${parts[2]}.${parts[1]}.${parts[0]}`;
+}
+
+// Get estimated date for a tour based on base date (01.05.2026)
+function getEstimatedDate(tour: number): string {
+  const base = new Date(BASE_DATE_ISO);
+  const date = new Date(base);
+  date.setDate(date.getDate() + (tour - 1) * 30);
+  return date.toISOString().slice(0, 10); // YYYY-MM-DD format
+}
 
 export function AcademicJournalPage() {
   const {t} = useI18n();
@@ -54,8 +81,12 @@ export function AcademicJournalPage() {
   // Track explicit tour counts per discipline (for "Add Tour" button)
   const [tourCounts, setTourCounts] = useState<Map<string, number>>(new Map());
 
-  // Track dropdown state for quick grade selection
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  // Track tour dates set by user (for display and prefill)
+  const [tourDates, setTourDates] = useState<Map<string, string>>(new Map());
+
+  // Tour date dialog state
+  const [tourDateDialogOpen, setTourDateDialogOpen] = useState(false);
+  const [tourDateDialogData, setTourDateDialogData] = useState<{disciplineId: string; disciplineName: string; tourNumber: number} | null>(null);
 
   const [formOpen, setFormOpen] = useState(false);
   const [recordId, setRecordId] = useState<string | null>(null);
@@ -64,14 +95,20 @@ export function AcademicJournalPage() {
   const [studentDialogOpen, setStudentDialogOpen] = useState(false);
   const [studentRecordId, setStudentRecordId] = useState<string | null>(null);
 
-  // Add a new tour column for a discipline
-  function addTour(disciplineId: string) {
+  // Add a new tour column for a discipline - opens the date dialog
+  const MAX_EXTRA_TOURS = MAX_TOUR_COUNT - DEFAULT_TOUR_COUNT;
+
+  function handleTourDateConfirm(disciplineId: string, tourNumber: number, date: string) {
+    // Store the tour date and increment tour count
+    setTourDates(prev => {
+      const newMap = new Map(prev);
+      newMap.set(`${disciplineId}|${tourNumber}`, date);
+      return newMap;
+    });
     setTourCounts(prev => {
       const newMap = new Map(prev);
-      const currentCount = newMap.get(disciplineId) ?? 0;
-      if (currentCount < MAX_TOUR_COUNT) {
-        newMap.set(disciplineId, currentCount + 1);
-      }
+      const current = newMap.get(disciplineId) ?? 0;
+      newMap.set(disciplineId, current + 1);
       return newMap;
     });
   }
@@ -110,12 +147,24 @@ export function AcademicJournalPage() {
     [students, groupId],
   );
 
+  // Convert group students to OptionItem format for the dialog's student dropdown
+  const studentOptions = useMemo(
+    () => groupStudents.map((student) => ({id: student.personId, label: student.fullName ?? ''})),
+    [groupStudents],
+  );
+
   const groupDisciplines = useMemo(
     () =>
       disciplines
         .filter((discipline) => (discipline.groupId ?? discipline.group?.id) === groupId)
         .sort((a, b) => String(a.subject?.name ?? '').localeCompare(String(b.subject?.name ?? ''))),
     [disciplines, groupId],
+  );
+
+  // Convert group disciplines to OptionItem format for the dialog's discipline dropdown
+  const disciplineOptions = useMemo(
+    () => groupDisciplines.map((discipline) => ({id: discipline.id, label: discipline.subject?.name ?? ''})),
+    [groupDisciplines],
   );
 
   const groupDisciplineIds = useMemo(() => new Set(groupDisciplines.map((discipline) => discipline.id)), [groupDisciplines]);
@@ -138,7 +187,7 @@ export function AcademicJournalPage() {
     return map;
   }, [records, groupDisciplineIds]);
 
-  // Determine the maximum tour number per discipline (includes explicit tour count from addTour button)
+// Determine the maximum tour number per discipline (includes explicit tour count from addTour button)
   // tourCounts stores the number of EXTRA tours to add beyond the calculated max
   const disciplineMaxTour = useMemo(() => {
     const map = new Map<string, number>();
@@ -154,12 +203,14 @@ export function AcademicJournalPage() {
     // Set defaults and add extra tours from tourCounts
     for (const discipline of groupDisciplines) {
       if (!map.has(discipline.id)) {
-        // Default to 3 for disciplines without grades
+        // Default to 1 for disciplines without grades
         map.set(discipline.id, DEFAULT_TOUR_COUNT);
       }
       // Add extra tours from tourCounts (each increment adds 1 more tour)
       const extraTours = tourCounts.get(discipline.id) ?? 0;
-      map.set(discipline.id, (map.get(discipline.id) ?? DEFAULT_TOUR_COUNT) + extraTours);
+      const totalTours = (map.get(discipline.id) ?? DEFAULT_TOUR_COUNT) + extraTours;
+      // Cap at MAX_TOUR_COUNT
+      map.set(discipline.id, Math.min(totalTours, MAX_TOUR_COUNT));
     }
     return map;
   }, [cellMap, groupDisciplines, tourCounts]);
@@ -175,9 +226,25 @@ export function AcademicJournalPage() {
     return map;
   }, [cellMap]);
 
+  // Build a map with key: disciplineId|tour, value: date (for tour header display)
+  // This gets dates from the first available grade for each discipline+tour combination
+  const tourDateMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [key, grades] of cellMap.entries()) {
+      const disciplineId = key.split('|')[1];
+      for (const grade of grades) {
+        if (grade.date) {
+          map.set(`${disciplineId}|${grade.tour}`, grade.date);
+        }
+      }
+    }
+    return map;
+  }, [cellMap]);
+
   // Determine which tours are locked (if a lower tour has a passing grade, higher tours are locked)
   // Also lock grades that have been changed 2 times already
   // E.g., if tour 1 is passed -> lock tours 2 and 3; if tour 2 is passed -> lock tour 3
+  // IMPORTANT: Once a grade is set, it cannot be changed!
   const lockedToursMap = useMemo(() => {
     const map = new Map<string, Set<number>>(); // key: studentId|disciplineId, value: set of locked tour numbers
     const maxTours = disciplineMaxTour;
@@ -188,13 +255,18 @@ export function AcademicJournalPage() {
       const sortedGrades = [...grades].sort((a, b) => Number(a.tour ?? 0) - Number(b.tour ?? 0));
       
       for (const grade of sortedGrades) {
+        // Once a grade is set, it's locked - no changes allowed!
         // Check if sign has been changed 2 times already
         const signChanges = Number(grade.signChanges ?? 0);
         if (signChanges >= MAX_SIGN_CHANGES) {
           lockedTours.add(Number(grade.tour));
         }
+        // If this tour has a grade, it's locked (cannot change once set)
+        if (grade.sign != null) {
+          lockedTours.add(Number(grade.tour));
+        }
         // Check if this is a passing grade - lock higher tours
-        if (isPass(viewMode === 'zachet', Number(grade.sign))) {
+        if (grade.sign != null && isPass(viewMode === 'zachet', Number(grade.sign))) {
           const passingTour = Number(grade.tour ?? 0);
           const maxTour = maxTours.get(key.split('|')[1]!) ?? DEFAULT_TOUR_COUNT;
           for (let i = passingTour + 1; i <= maxTour; i++) {
@@ -212,91 +284,11 @@ export function AcademicJournalPage() {
   const isZachet = viewMode === 'zachet';
   const Icon = viewMode === 'exam' ? GraduationCap : ClipboardCheck;
 
-  // Reload function must be defined before quickSaveGrade
-  const reloadRef = useRef<() => void>();
-  reloadRef.current = () => {
-    setRefreshTick((tick) => tick + 1);
-  };
-
-  // Quick save grade from dropdown (only used when clicking existing grade)
-  const quickSaveGrade = useCallback(async (sign: number, studentId: string, disciplineId: string, tour: number, recordId?: string | null) => {
-    try {
-      const currentKey = viewMode === 'exam' ? 'exam' : 'zachet';
-      if (recordId) {
-        // Increment sign changes when updating
-        await api.update(currentKey, recordId, {sign, signChanges: "increment"});
-      } else {
-        await api.create(currentKey, {
-          studentId,
-          disciplineId,
-          teacherId: disciplines.find(d => d.id === disciplineId)?.teacherId ?? '',
-          tour,
-          sign,
-        });
-      }
-      reloadRef.current?.();
-    } catch (error) {
-      console.error('Failed to save grade:', error);
-    }
-    setOpenDropdown(null);
-  }, [disciplines, viewMode]);
-
-// Get available scores based on view mode (for dropdown)
-  function getAvailableScores() {
-    if (isZachet) {
-      return [
-        {value: 3, label: t('zachet.3')},
-        {value: 2, label: t('zachet.2')},
-        {value: 1, label: t('zachet.1')},
-        {value: 0, label: t('zachet.0')},
-      ];
-    }
-    return [
-      {value: 5, label: t('score.5')},
-      {value: 4, label: t('score.4')},
-      {value: 3, label: t('score.3')},
-      {value: 2, label: t('score.2')},
-      {value: 1, label: t('score.1')},
-    ];
-  }
-
-  // Get tour label with visual distinction
-  function getTourLabel(tour: number) {
-    if (tour === 1) return t('journal.tour1');
-    if (tour === 2) return t('journal.tour2');
-    return t('journal.tour3plus', {n: tour});
-  }
-
-  // Get tooltip for locked cells explaining the reason
-  function getLockTooltip(grade: Rec | null, tour: number) {
-    if (!grade) return t('journal.tourLocked');
-    
-    const signChanges = Number(grade.signChanges ?? 0);
-    if (signChanges >= MAX_SIGN_CHANGES) {
-      return t('journal.tourLockedChanges');
-    }
-    
-    // Find which tour had the passing grade
-    const cellKey = `${grade.studentId}|${grade.disciplineId}`;
-    const allGrades = cellMap.get(cellKey) || [];
-    const sortedGrades = [...allGrades].sort((a, b) => Number(a.tour ?? 0) - Number(b.tour ?? 0));
-    
-    for (const g of sortedGrades) {
-      const sign = Number(g.sign ?? 0);
-      const isPassInLowerTour = isPass(isZachet, sign);
-      if (isPassInLowerTour && Number(g.tour ?? 0) < tour) {
-        return t('journal.tourLockedPassed', {tour: Number(g.tour ?? 0)});
-      }
-    }
-    return t('journal.tourLocked');
-  }
-
   function reload() {
     setRefreshTick((tick) => tick + 1);
   }
 
   function openAdd(prefill?: Rec, editId?: string | null) {
-    setOpenDropdown(null); // Close dropdown when opening full dialog
     setAddInitial(prefill);
     setRecordId(editId ?? null);
     setFormOpen(true);
@@ -316,6 +308,39 @@ export function AcademicJournalPage() {
   function closeStudentDialog() {
     setStudentDialogOpen(false);
     setStudentRecordId(null);
+  }
+
+  // Calculate average grades per discipline for the current view mode
+  const disciplineAverages = useMemo(() => {
+    const averages = new Map<string, { average: number | null; passCount: number; totalCount: number }>();
+    for (const discipline of groupDisciplines) {
+      const disciplineKey = `${groupId}|${discipline.id}`;
+      const grades = cellMap.get(disciplineKey) || [];
+      const validGrades = grades.filter(g => g.sign != null);
+      
+      if (validGrades.length === 0) {
+        averages.set(discipline.id, { average: null, passCount: 0, totalCount: 0 });
+        continue;
+      }
+
+      const passCount = validGrades.filter(g => isPass(isZachet, Number(g.sign))).length;
+      // For exams, convert to GPA scale (1-5), for zachet just average the raw values
+      const sum = validGrades.reduce((acc, g) => acc + Number(g.sign), 0);
+      const average = sum / validGrades.length;
+      
+      averages.set(discipline.id, { average, passCount, totalCount: validGrades.length });
+    }
+    return averages;
+  }, [groupDisciplines, cellMap, isZachet, groupId]);
+
+  // Add a new tour column for a discipline - opens the date dialog
+  function initiateAddTour(disciplineId: string, disciplineName: string) {
+    const currentMaxTour = disciplineMaxTour.get(disciplineId) ?? DEFAULT_TOUR_COUNT;
+    const nextTour = currentMaxTour + 1;
+    if (nextTour <= MAX_TOUR_COUNT) {
+      setTourDateDialogData({disciplineId, disciplineName, tourNumber: nextTour});
+      setTourDateDialogOpen(true);
+    }
   }
 
   // Current config and title based on view mode
@@ -382,6 +407,7 @@ export function AcademicJournalPage() {
                       </th>
                       {groupDisciplines.map((discipline) => {
                         const tourCount = disciplineMaxTour.get(discipline.id) ?? DEFAULT_TOUR_COUNT;
+                        const avgData = disciplineAverages.get(discipline.id);
                         return (
                           <th
                             key={`${discipline.id}-header`}
@@ -390,11 +416,16 @@ export function AcademicJournalPage() {
                           >
                             <div>{discipline.subject?.name ?? '—'}</div>
                             <div className="text-[11px] font-normal text-slate-400">{discipline.teacher?.fullName ?? ''}</div>
-{tourCount < MAX_TOUR_COUNT && (
+                            {avgData && avgData.average !== null && (
+                              <div className="mt-1 text-[10px] font-medium text-slate-500" title={`${t('col.student')}: ${avgData.totalCount}, ${t('journal.passed')}: ${avgData.passCount}`}>
+                                {t('journal.avg')}: {avgData.average.toFixed(1)}
+                              </div>
+                            )}
+                            {tourCount < MAX_TOUR_COUNT && (
                               <button
                                 type="button"
                                 title={t('journal.addTour')}
-                                onClick={() => addTour(discipline.id)}
+                                onClick={() => initiateAddTour(discipline.id, discipline.subject?.name ?? '')}
                                 className="inline-flex items-center gap-1 text-xs text-slate-400 transition hover:text-slate-600"
                               >
                                 <Plus className="h-3 w-3" />
@@ -412,13 +443,20 @@ export function AcademicJournalPage() {
                       {groupDisciplines.map((discipline) => {
                         const tourCount = disciplineMaxTour.get(discipline.id) ?? DEFAULT_TOUR_COUNT;
                         return Array.from({length: tourCount}, (_, i) => i + 1).map((tour) => {
+                          // Get date from record, or from user-set tourDates, or estimated
+                          const tourDate = tourDateMap.get(`${discipline.id}|${tour}`) || 
+                                          tourDates.get(`${discipline.id}|${tour}`) || 
+                                          getEstimatedDate(tour);
+                          const formattedDate = formatDate(tourDate);
                           const tourLabelClass = tour === 1 ? 'text-sky-600' : tour === 2 ? 'text-amber-600' : 'text-slate-500';
                           return (
                             <th
                               key={`${discipline.id}-tour-${tour}`}
-                              className="min-w-[50px] border-b border-l border-slate-200 bg-slate-100 px-2 py-1 text-center text-xs font-semibold text-slate-500"
+                              className="min-w-[50px] border-b border-l border-slate-200 bg-slate-100 px-2 py-1 text-center text-xs font-semibold"
                             >
-                              <span className={tourLabelClass}>{tour === 1 ? t('journal.tour1') : tour === 2 ? t('journal.tour2') : t('journal.tour3plus', {n: tour})}</span>
+                              <span className={tourLabelClass} title={tourDate ? `${t('field.tour')} ${tour} · ${tourDate}` : `${t('field.tour')} ${tour}`}>
+                                {formattedDate}
+                              </span>
                             </th>
                           );
                         });
@@ -444,8 +482,6 @@ export function AcademicJournalPage() {
                           return Array.from({length: tourCount}, (_, i) => i + 1).map((tour) => {
                             const grade = gradeMap.get(`${student.personId}|${discipline.id}|${tour}`);
                             const isLocked = lockedTours.has(tour);
-                            const dropdownKey = `${student.personId}|${discipline.id}|${tour}`;
-                            const isOpen = openDropdown === dropdownKey;
                             // If tour is locked and no grade exists, show "skipped" instead of "+"
                             if (isLocked && !grade) {
                               return (
@@ -469,61 +505,34 @@ export function AcademicJournalPage() {
                                 className="border-l border-slate-100 px-2 py-1.5 text-center align-middle"
                               >
                                 {grade ? (
-                                  <div className="relative inline-block">
-                                    <span
-                                      title={isLocked ? getLockTooltip(grade, tour) : `${t('field.tour')} ${tour}`}
-                                      className={cn(
-                                        'inline-flex h-8 min-w-[34px] items-center justify-center rounded-lg px-2 text-xs font-semibold ring-1',
-                                        isLocked && 'cursor-not-allowed opacity-70',
-                                        !isLocked && 'cursor-pointer',
-                                        isPass(isZachet, Number(grade.sign))
-                                          ? 'bg-emerald-100 text-emerald-700 ring-emerald-200'
-                                          : 'bg-rose-100 text-rose-700 ring-rose-200',
-                                      )}
-                                      onClick={isLocked ? undefined : () => {
-                                        if (isOpen) {
-                                          setOpenDropdown(null);
-                                        } else {
-                                          setOpenDropdown(dropdownKey);
-                                        }
-                                      }}
-                                    >
-                                      {getScoreLabel(t, isZachet, Number(grade.sign))}
-                                      {isLocked && <Lock className="ml-1 h-3 w-3" />}
-                                      {!isLocked && <ChevronDown className="ml-1 h-3 w-3 opacity-50" />}
-                                    </span>
-                                    {isOpen && !isLocked && (
-                                      <div className="absolute left-0 top-full z-50 mt-1 min-w-[120px] rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
-                                        <div className="flex flex-col gap-0.5">
-                                          {getAvailableScores().map((score) => (
-                                            <button
-                                              key={score.value}
-                                              type="button"
-                                              onClick={() => quickSaveGrade(score.value, student.personId, discipline.id, tour, grade.id)}
-                                              className={cn(
-                                                'w-full rounded px-2 py-1 text-left text-xs transition',
-                                                score.value === grade.sign
-                                                  ? 'bg-slate-100 font-semibold'
-                                                  : 'hover:bg-slate-50',
-                                              )}
-                                            >
-                                              {score.label}
-                                            </button>
-                                          ))}
-                                        </div>
-                                      </div>
+                                  // Grade exists - display it (read-only)
+                                  <span
+                                    title={isLocked ? t('journal.gradeLocked') : `${t('field.tour')} ${tour}${grade.date ? ` • ${formatDate(grade.date)}` : ''}`}
+                                    className={cn(
+                                      'inline-flex h-8 min-w-[34px] items-center justify-center rounded-lg px-2 text-xs font-semibold ring-1',
+                                      isLocked ? 'cursor-not-allowed opacity-70' : 'cursor-default',
+                                      isPass(isZachet, Number(grade.sign))
+                                        ? 'bg-emerald-100 text-emerald-700 ring-emerald-200'
+                                        : 'bg-rose-100 text-rose-700 ring-rose-200',
                                     )}
-                                  </div>
+                                  >
+                                    {getScoreLabel(t, isZachet, Number(grade.sign))}
+                                    {isLocked && <Lock className="ml-1 h-3 w-3" />}
+                                  </span>
                                 ) : (
                                   // Empty cell - open form dialog when clicking "+"
+                                  // Get date from record, or from user-set tourDates, or estimated
                                   <button
                                     type="button"
                                     title={currentAddLabel}
-                                    onClick={() => openAdd({
+onClick={() => openAdd({
                                       studentId: student.personId,
                                       disciplineId: discipline.id,
                                       teacherId: disciplines.find(d => d.id === discipline.id)?.teacherId ?? '',
                                       tour: String(tour),
+                                      date: tourDateMap.get(`${discipline.id}|${tour}`) || 
+                                            tourDates.get(`${discipline.id}|${tour}`) || 
+                                            getEstimatedDate(tour),
                                     })}
                                     className="inline-flex h-8 w-7 items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-50 hover:text-slate-500"
                                   >
@@ -540,6 +549,30 @@ export function AcademicJournalPage() {
                 </table>
               </div>
               <p className="mt-4 text-xs text-slate-400">{currentHint}</p>
+              
+              {/* Lock Legend */}
+              <div className="mt-2 flex items-center gap-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                <div className="flex items-center gap-1.5">
+                  <div className="h-4 w-4 rounded bg-emerald-100 ring-1 ring-emerald-200"></div>
+                  <span>{t('journal.legend.passed')}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="h-4 w-4 rounded bg-rose-100 ring-1 ring-rose-200"></div>
+                  <span>{t('journal.legend.failed')}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Lock className="h-3 w-3 text-slate-400" />
+                  <span>{t('journal.legend.locked')}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium text-sky-600">{t('field.tour')} 1</span>
+                  <span>= {t('journal.tour1')}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium text-amber-600">{t('field.tour')} 2</span>
+                  <span>= {t('journal.tour2')}</span>
+                </div>
+              </div>
             </>
           )}
         </CardContent>
@@ -553,6 +586,7 @@ export function AcademicJournalPage() {
         initialValues={addInitial}
         title={currentAddLabel}
         onSaved={reload}
+        filteredOptions={{students: studentOptions, discipline: disciplineOptions}}
       />
 
       <StudentInfoDialog
@@ -562,6 +596,15 @@ export function AcademicJournalPage() {
         examRecords={examRecords}
         zachetRecords={zachetRecords}
         disciplines={groupDisciplines}
+      />
+
+      <TourDateDialog
+        open={tourDateDialogOpen}
+        onOpenChange={setTourDateDialogOpen}
+        disciplineId={tourDateDialogData?.disciplineId ?? ''}
+        disciplineName={tourDateDialogData?.disciplineName ?? ''}
+        tourNumber={tourDateDialogData?.tourNumber ?? 1}
+        onConfirm={handleTourDateConfirm}
       />
     </div>
   );

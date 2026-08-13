@@ -154,6 +154,7 @@ export const moduleConfigs: ModuleConfig[] = [
           {name: 'studentId', label: 'field.student', type: 'select', source: 'students', required: true},
           {name: 'disciplineId', label: 'field.discipline', type: 'select', source: 'discipline', required: true},
           {name: 'teacherId', label: 'field.teacher', type: 'select', source: 'teachers', required: true},
+          {name: 'date', label: 'field.date', type: 'date'},
           {name: 'tour', label: 'field.tour', type: 'number', required: true, min: 1},
           {name: 'sign', label: 'field.sign', type: 'select', required: true, valueType: 'number', options: [
             {id: '5', label: 'score.5'},
@@ -174,6 +175,7 @@ export const moduleConfigs: ModuleConfig[] = [
           {name: 'studentId', label: 'field.student', type: 'select', source: 'students', required: true},
           {name: 'disciplineId', label: 'field.discipline', type: 'select', source: 'discipline', required: true},
           {name: 'teacherId', label: 'field.teacher', type: 'select', source: 'teachers', required: true},
+          {name: 'date', label: 'field.date', type: 'date'},
           {name: 'tour', label: 'field.tour', type: 'number', required: true, min: 1},
           {name: 'sign', label: 'field.sign', type: 'select', required: true, valueType: 'number', options: [
             {id: '3', label: 'zachet.3'},

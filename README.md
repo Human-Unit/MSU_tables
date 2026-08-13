@@ -1,77 +1,146 @@
 # University Academic Records System
 
-A Wails desktop application for managing university academic records.
+Desktop application for managing university academic records, built with Wails, Go, PostgreSQL, React, and TypeScript.
 
-## Stack
+## Features
+
+- Dashboard with academic record totals.
+- CRUD modules for faculties, vocations, groups, auditoriums, students, teachers, subjects, disciplines, attendance, exams, zachet, and teacher workload execution.
+- Dedicated journal views for attendance, academic performance, execution sheets, and weekly schedules.
+- Recurring weekly timetable model based on weekday and pair number.
+- Cascading academic filters for faculty, vocation, course, and group.
+- RU/EN interface language switcher persisted in local storage.
+- PostgreSQL schema bootstrap, migrations, seed data, and soft-delete support for active records.
+
+## Tech Stack
 
 - Go 1.25+
-- Wails v2 desktop shell
-- PostgreSQL + GORM
-- React + TypeScript
-- TailwindCSS-style UI components
+- Wails v2
+- PostgreSQL
+- GORM
+- React 18
+- TypeScript
+- Vite
+- Tailwind CSS-style components
 
-## Implemented
+## Prerequisites
 
-- Database bootstrap and migrations
-- Schema-aligned models for faculties, vocations, groups, students, teachers, schedules, attendance, performance, and execution
-- Generic CRUD flow for the simple modules
-- Dedicated student and teacher CRUD flows
-- React dashboard shell, sidebar navigation, searchable tables, pagination, and modal forms
-- Weekly timetable view (recurring by weekday, Mon–Sat) with cascading filters: faculty → vocation → course → group
-- RU/EN language switcher (persisted to localStorage)
+- Go
+- Node.js and npm
+- Wails CLI
+- Docker Desktop, for the local PostgreSQL database
 
-## Schedule model note
+Install the Wails CLI if it is not already available:
 
-The schedule is a **recurring weekly timetable**: each entry has a `weekday`
-(1=Monday … 6=Saturday) and a `pair`, instead of a concrete calendar date. The
-legacy `day` column is dropped automatically on startup (see
-`internal/database/migrate.go`). Add/edit lessons via the **Schedule** module in
-the sidebar; view the grid via **Weekly Schedule**. A small demo dataset is
-seeded on first run so the grid is populated immediately.
+```powershell
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+```
 
-## Run
+## Configuration
 
-1. Copy `.env.example` to `.env` if you want to tweak local settings. The app reads `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, and `DB_SSLMODE` for Postgres connection settings.
-2. Start PostgreSQL with Docker:
+Copy the example environment file:
 
-   ```bash
-   docker compose up -d db
-   ```
+```powershell
+Copy-Item .env.example .env
+```
 
-3. If you want to build the frontend separately from the root, you can now run:
+Default local database settings:
 
-   ```bash
-   npm install
-   npm run build
-   ```
+```env
+DB_HOST=localhost
+DB_PORT=5433
+DB_USER=postgres
+DB_PASSWORD=
+DB_NAME=university_records
+DB_SSLMODE=disable
+DB_TIMEZONE=Asia/Tashkent
+SESSION_DURATION_HOURS=24
+SEED_ADMIN_USER=admin
+SEED_ADMIN_PASSWORD=admin123
+LOG_LEVEL=info
+```
 
-4. Run the Wails app from the project root:
+## Run Locally
 
-   ```bash
-   wails dev
-   ```
+Start PostgreSQL:
 
-   This will automatically install frontend dependencies, build the frontend, compile the Go backend, and launch the desktop app.
+```powershell
+docker compose up -d db
+```
 
-   If you are already inside `frontend/`, run:
+Run the desktop app from the project root:
 
-   ```powershell
-   ..\dev.ps1
-   ```
+```powershell
+wails dev
+```
 
-### Troubleshooting
+Wails installs frontend dependencies, starts the Vite dev server, compiles the Go backend, and launches the desktop shell.
 
-- If you see a SASL auth/login failed error, the container volume has stale credentials. Fully reset the DB before retrying:
-   - `docker compose down -v`
-   - `docker compose up -d db`
-- Verify `.env` DB credentials match `docker-compose.yml`. Defaults: `postgres` / `postgres` on `127.0.0.1:5433`.
-- Local Docker uses trust auth, so `DB_PASSWORD` can be left blank.
+You can also start through the helper script:
 
-## Docker Setup
+```powershell
+.\dev.ps1
+```
 
-Docker is used for PostgreSQL only.
+## Frontend Commands
 
-- App runtime: local Wails desktop app
-- Database: `docker compose up -d db`
-- Connection string: built from the `DB_*` values in `.env`
-- If you previously started Postgres with a different password, this repo now uses a fresh volume (`university_records_data_v2`) so the local database reinitializes cleanly.
+Run the frontend dev server directly:
+
+```powershell
+npm run dev
+```
+
+Build the frontend:
+
+```powershell
+npm run build
+```
+
+Preview the production frontend build:
+
+```powershell
+npm run preview
+```
+
+The root `package.json` delegates these commands to the `frontend` workspace.
+
+## Build Desktop App
+
+Create a production desktop build:
+
+```powershell
+wails build
+```
+
+The Windows build output is written under `build/bin` by Wails.
+
+## Database
+
+Docker is used only for PostgreSQL:
+
+```powershell
+docker compose up -d db
+```
+
+The application runs migrations on startup through `internal/database/migrate.go`.
+
+The schedule table uses a recurring weekly model: each lesson has `weekday` and `pair` fields instead of a concrete date. Attendance records are tied to a student, discipline, day, and pair, with statuses such as present, absent, late, and excused.
+
+## Troubleshooting
+
+If PostgreSQL authentication fails after changing credentials, reset the local database volume:
+
+```powershell
+docker compose down -v
+docker compose up -d db
+```
+
+Then confirm `.env` matches `docker-compose.yml`. The local Docker setup uses trust authentication, so `DB_PASSWORD` can be empty.
+
+If Wails cannot find frontend dependencies, install them manually:
+
+```powershell
+npm --prefix frontend install
+```
+
+If the Wails CLI is missing from the shell path, restart the terminal after installing it or add the Go binary directory to `PATH`.

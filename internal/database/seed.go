@@ -315,6 +315,11 @@ func seedAttendanceDemo(ctx context.Context, db *gorm.DB) error {
 	return nil
 }
 
+// Helper to format date as YYYY-MM-DD string
+func formatDate(date time.Time) string {
+	return date.Format("2006-01-02")
+}
+
 // seedGradesDemo creates mock exam and zachet grades for the demo students.
 func seedGradesDemo(ctx context.Context, db *gorm.DB) error {
 	tx := db.WithContext(ctx)
@@ -342,7 +347,7 @@ func seedGradesDemo(ctx context.Context, db *gorm.DB) error {
 		}
 	}
 
-	// Seed exam grades (signs 1-5)
+	// Seed exam grades (signs 1-5) with dates for each tour
 	for _, student := range students {
 		for _, disc := range examDisciplines {
 			// Each student gets 1-2 exam grades for each exam discipline
@@ -350,20 +355,38 @@ func seedGradesDemo(ctx context.Context, db *gorm.DB) error {
 			if student.PersonID.ID()%7 == 0 {
 				sign = 2 // Some students get 2 (fail)
 			}
+			// Tour 1 date - October 2026 (initial exam)
+			date1 := time.Date(2026, time.October, 15+int(student.PersonID.ID()%10), 0, 0, 0, 0, time.UTC)
 			record := models.Exam{}
-			if err := tx.Where(models.Exam{StudentID: student.PersonID, DisciplineID: disc.ID}).
+			if err := tx.Where(models.Exam{StudentID: student.PersonID, DisciplineID: disc.ID, Tour: 1}).
 				Attrs(models.Exam{
 					TeacherID: disc.TeacherID,
 					Tour:      1,
 					Sign:      sign,
+					Date:      ptr(formatDate(date1)),
 				}).
 				FirstOrCreate(&record).Error; err != nil {
 				return err
 			}
+			// Add Tour 2 for some students (retake) - 20% of students
+			if student.PersonID.ID()%5 == 0 && sign < 3 {
+				date2 := time.Date(2026, time.December, 10+int(student.PersonID.ID()%15), 0, 0, 0, 0, time.UTC)
+				record2 := models.Exam{}
+				if err := tx.Where(models.Exam{StudentID: student.PersonID, DisciplineID: disc.ID, Tour: 2}).
+					Attrs(models.Exam{
+						TeacherID: disc.TeacherID,
+						Tour:      2,
+						Sign:      int16(3 + int(student.PersonID.ID()%2)), // Passing grade
+						Date:      ptr(formatDate(date2)),
+					}).
+					FirstOrCreate(&record2).Error; err != nil {
+					return err
+				}
+			}
 		}
 	}
 
-	// Seed zachet grades (signs 0-3)
+	// Seed zachet grades (signs 0-3) with dates for each tour
 	for _, student := range students {
 		for _, disc := range zachetDisciplines {
 			// Each student gets 1-2 zachet grades for each zachet discipline
@@ -371,18 +394,41 @@ func seedGradesDemo(ctx context.Context, db *gorm.DB) error {
 			if student.PersonID.ID()%5 == 0 {
 				sign = 0 // Some students get 0 (fail)
 			}
+			// Tour 1 date - October 2026 (initial zachet)
+			date1 := time.Date(2026, time.October, 20+int(student.PersonID.ID()%10), 0, 0, 0, 0, time.UTC)
 			record := models.Zachet{}
-			if err := tx.Where(models.Zachet{StudentID: student.PersonID, DisciplineID: disc.ID}).
+			if err := tx.Where(models.Zachet{StudentID: student.PersonID, DisciplineID: disc.ID, Tour: 1}).
 				Attrs(models.Zachet{
 					TeacherID: disc.TeacherID,
 					Tour:      1,
 					Sign:      sign,
+					Date:      ptr(formatDate(date1)),
 				}).
 				FirstOrCreate(&record).Error; err != nil {
 				return err
+			}
+			// Add Tour 2 for some students (retake) - 20% of students who failed
+			if student.PersonID.ID()%5 == 0 && sign == 0 {
+				date2 := time.Date(2026, time.December, 15+int(student.PersonID.ID()%10), 0, 0, 0, 0, time.UTC)
+				record2 := models.Zachet{}
+				if err := tx.Where(models.Zachet{StudentID: student.PersonID, DisciplineID: disc.ID, Tour: 2}).
+					Attrs(models.Zachet{
+						TeacherID: disc.TeacherID,
+						Tour:      2,
+						Sign:      int16(1 + int(student.PersonID.ID()%2)), // Passing grade
+						Date:      ptr(formatDate(date2)),
+					}).
+					FirstOrCreate(&record2).Error; err != nil {
+					return err
+				}
 			}
 		}
 	}
 
 	return nil
+}
+
+// ptr returns a pointer to any value
+func ptr[T any](v T) *T {
+	return &v
 }
